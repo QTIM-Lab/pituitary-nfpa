@@ -36,6 +36,9 @@ if not project_dataset_dir.exists():
         UserWarning,
     )
 
+# Location to store metadata
+meta_dir = project_dir / "meta"
+
 # Location to store checkpoints
 checkpoints_dir = project_dir / "checkpoints"
 
@@ -54,4 +57,6 @@ resources_dir = files("pituitary_nfpa") / "resources"
 train_configs_dir = resources_dir / "training_configs"
 
 # Location of the master excel file
-dataset_workbook = project_dataset_dir / "nfpa-dataset-noheader.xlsx"
+dataset_workbook = project_dataset_dir / "nfpa-dataset-no-header.xlsx"
+working_dataframe = meta_dir / "working_dataframe.parquet"
+images_dir = project_dataset_dir / "images"
