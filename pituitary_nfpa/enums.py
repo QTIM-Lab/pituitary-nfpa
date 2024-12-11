@@ -15,3 +15,11 @@ class DatasetSplit(Enum):
     TRAIN = "TRAIN"
     VALIDATION = "VALIDATION"
     TEST = "TEST"
+
+
+class PredictionLabels(Enum):
+    """Enum listing prediction targets."""
+
+    PROGRESSION = "PROGRESSION"
+    RECURRENCE = "RECURRENCE"
+    PROGRESSION_OR_RECURRENCE = "PROGRESSION_OR_RECURRENCE"

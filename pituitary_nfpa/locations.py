@@ -52,3 +52,6 @@ vis_dir = project_dir / "vis"
 resources_dir = files("pituitary_nfpa") / "resources"
 # Location where train configs are kept
 train_configs_dir = resources_dir / "training_configs"
+
+# Location of the master excel file
+dataset_workbook = project_dataset_dir / "nfpa-dataset-noheader.xlsx"
