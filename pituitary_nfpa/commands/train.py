@@ -13,7 +13,7 @@ import torch
 from pituitary_nfpa import locations
 from pituitary_nfpa.constants import IMAGE_KEY, LABEL_KEY
 from pituitary_nfpa.data import prepare_dataset
-from pituitary_nfpa.loaders import get_transforms
+from pituitary_nfpa.preprocess.loaders import get_transforms
 
 
 class PituitaryClassifier(pyl.LightningModule):
@@ -32,22 +32,33 @@ class PituitaryClassifier(pyl.LightningModule):
         self.config = config
 
         self.model = monai.networks.nets.resnet18(
-            block="bottleneck",
             spatial_dims=3,
             num_classes=1,
-            norm="instance",
+            n_input_channels=1,
         )
 
     def training_step(self, batch: dict[str, Any], batch_idx: int) -> torch.Tensor:
         """Pytorch lightning training step."""
         pred = self.model(batch[IMAGE_KEY])
-        label = batch[LABEL_KEY]
+        label = batch[LABEL_KEY][:, None]
 
         loss = torch.nn.functional.binary_cross_entropy_with_logits(
             pred,
             label,
         )
         self.log("train_loss", loss)
+        return loss
+
+    def validation_step(self, batch: dict[str, Any], batch_idx: int) -> torch.Tensor:
+        """Pytorch lightning validation step."""
+        pred = self.model(batch[IMAGE_KEY])
+        label = batch[LABEL_KEY][:, None]
+
+        loss = torch.nn.functional.binary_cross_entropy_with_logits(
+            pred,
+            label,
+        )
+        self.log("val_loss", loss)
         return loss
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
@@ -110,16 +121,23 @@ def train(
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
+        batch_size=config["batch_size"],
         num_workers=config["workers"],
+        shuffle=True,
     )
     val_loader = torch.utils.data.DataLoader(
         val_dataset,
         num_workers=config["workers"],
+        batch_size=config["batch_size"],
     )
 
     module = PituitaryClassifier(config=config)
     trainer = pyl.Trainer(
-        accelerator="gpu",
+        accelerator="cpu",
         default_root_dir=model_output_dir,
     )
     trainer.fit(module, train_loader, val_loader)
+
+
+if __name__ == "__main__":
+    train()

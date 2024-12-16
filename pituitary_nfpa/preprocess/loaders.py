@@ -13,7 +13,12 @@ from monai.transforms.spatial.dictionary import (
     Spacingd,
 )
 from monai.transforms.croppad.dictionary import CenterSpatialCropd
-from monai.transforms.utility.dictionary import DeleteItemsd, EnsureChannelFirstd
+from monai.transforms.utility.dictionary import (
+    DeleteItemsd,
+    EnsureChannelFirstd,
+    ToTensord,
+    ToDeviced,
+)
 from monai.transforms.intensity.dictionary import (
     NormalizeIntensityd,
     RandScaleIntensityd,
@@ -23,14 +28,16 @@ from monai.transforms.intensity.dictionary import (
     RandGaussianSharpend,
     RandGaussianNoised,
 )
+import torch
 from qtim_transforms import ForegroundCenteredCropd
 
-from pituitary_nfpa.constants import IMAGE_KEY, MASK_KEY
+from pituitary_nfpa.constants import IMAGE_KEY, MASK_KEY, LABEL_KEY
 
 
 def get_transforms(
     augmentation: bool = False,
     crop_size: Sequence[int] = (128, 128, 6),
+    use_gpu: bool = False,
 ) -> Compose:
     """Get the transform pipeline.
 
@@ -40,6 +47,8 @@ def get_transforms(
         Include augmentation in the pipeline.
     crop_size: Sequence[int], optional
         Size of the cropped region around the segmentation.
+    use_gpu: bool, optional
+        Whether to use the GPU for preprocessing transforms.
 
     Returns
     -------
@@ -71,8 +80,12 @@ def get_transforms(
         2 * transpose_z,
     )
 
+    device = "cuda:0" if use_gpu else "cpu"
+
     initial_transforms = [
+        ToTensord(keys=[LABEL_KEY], dtype=torch.float32),
         LoadImaged(keys=both_image_keys),
+        *([ToDeviced(keys=both_image_keys, device=device)] if use_gpu else []),
         EnsureChannelFirstd(keys=both_image_keys),
         Orientationd(
             axcodes="ILA",

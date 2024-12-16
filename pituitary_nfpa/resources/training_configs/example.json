@@ -1,6 +1,7 @@
 {
     "lr": 0.001,
     "workers": 4,
+    "batch_size": 8,
     "fold": 0,
     "target": "PROGRESSION_OR_RECURRENCE"
 }
