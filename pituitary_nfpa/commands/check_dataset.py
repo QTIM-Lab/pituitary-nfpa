@@ -3,7 +3,10 @@ import click
 import polars as pl
 from pycrumbs import tracked
 
+from sklearn.model_selection import StratifiedKFold
+
 from pituitary_nfpa import locations
+from pituitary_nfpa.constants import N_FOLDS
 
 
 @click.command()
@@ -42,8 +45,9 @@ def check_dataset() -> None:
             "case_number": case,
             "mrn": mrn,
             "accession": acc,
-            "progression": progression,
-            "recurrence": recurrence,
+            "progression": progression or 0,
+            "recurrence": recurrence or 0,
+            "progression_or_recurrence": progression or recurrence or 0,
         }
 
         if have_seg is None or have_seg != "yes":
@@ -112,4 +116,24 @@ def check_dataset() -> None:
     output_df = output_df.with_columns(
         include=pl.col("exclude_reason").is_null(),
     )
+
+    # Add splits
+    positives = output_df.filter(pl.col("include"))
+    negatives = output_df.filter(~pl.col("include"))
+
+    skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True)
+    for fold_ind, (train_indices, test_indices) in enumerate(
+        skf.split(
+            positives["mrn"],
+            positives["progression_or_recurrence"],
+        )
+    ):
+        split = [
+            "TRAIN" if i in train_indices else "TEST" for i in range(len(positives))
+        ]
+        split_col = pl.Series(f"fold_{fold_ind}", split)
+        positives.insert_column(-1, split_col)
+
+    output_df = pl.concat([positives, negatives], how="diagonal")
+
     output_df.write_parquet(locations.working_dataframe)

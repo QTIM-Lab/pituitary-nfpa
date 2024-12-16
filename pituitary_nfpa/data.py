@@ -49,8 +49,10 @@ def prepare_dataset(
             IMAGE_KEY: image_path,
             MASK_KEY: seg_path,
             LABEL_KEY: label,
+            "mrn": mrn,
+            "accession": acc,
         }
-        for (image_path, seg_path, label) in full_df[
-            ["image_path", "seg_path", target_col]
+        for (image_path, seg_path, label, mrn, acc) in full_df[
+            ["image_path", "seg_path", target_col, "mrn", "accession"]
         ].iter_rows()
     ]
