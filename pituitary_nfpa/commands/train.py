@@ -1,12 +1,59 @@
 """Main training functions."""
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import click
 from pycrumbs import tracked
 
+import monai
+import lightning as pyl
+import torch
+
 from pituitary_nfpa import locations
+from pituitary_nfpa.constants import IMAGE_KEY, LABEL_KEY
+from pituitary_nfpa.data import prepare_dataset
+from pituitary_nfpa.loaders import get_transforms
+
+
+class PituitaryClassifier(pyl.LightningModule):
+    """Pytorch lightning module for the pituitary classifier."""
+
+    def __init__(self, config: dict[str, Any]) -> None:
+        """Initializer.
+
+        Parameters
+        ----------
+        config: dict[str, Any]:
+            Dictionary containing configuration parameters.
+
+        """
+        super().__init__()
+        self.config = config
+
+        self.model = monai.networks.nets.resnet18(
+            block="bottleneck",
+            spatial_dims=3,
+            num_classes=1,
+            norm="instance",
+        )
+
+    def training_step(self, batch: dict[str, Any], batch_idx: int) -> torch.Tensor:
+        """Pytorch lightning training step."""
+        pred = self.model(batch[IMAGE_KEY])
+        label = batch[LABEL_KEY]
+
+        loss = torch.nn.functional.binary_cross_entropy_with_logits(
+            pred,
+            label,
+        )
+        self.log("train_loss", loss)
+        return loss
+
+    def configure_optimizers(self) -> torch.optim.Optimizer:
+        """Pytorch lightning configure optimizers step."""
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.config["lr"])
+        return optimizer
 
 
 @click.command()
@@ -50,5 +97,29 @@ def train(
     with config_copy.open("w") as jf:
         json.dump(config, jf, indent=4)
 
-    # Actual training code goes here...
-    pass
+    train_data, test_data = prepare_dataset(
+        target=config["target"],
+        fold=config["fold"],
+    )
+
+    train_transform = get_transforms(augmentation=True)
+    val_transform = get_transforms(augmentation=False)
+
+    train_dataset = monai.data.CacheDataset(train_data, train_transform)
+    val_dataset = monai.data.CacheDataset(test_data, val_transform)
+
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset,
+        num_workers=config["workers"],
+    )
+    val_loader = torch.utils.data.DataLoader(
+        val_dataset,
+        num_workers=config["workers"],
+    )
+
+    module = PituitaryClassifier(config=config)
+    trainer = pyl.Trainer(
+        accelerator="gpu",
+        default_root_dir=model_output_dir,
+    )
+    trainer.fit(module, train_loader, val_loader)
