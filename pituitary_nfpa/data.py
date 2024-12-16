@@ -3,12 +3,13 @@ import polars as pl
 
 from pituitary_nfpa import locations
 from pituitary_nfpa.constants import IMAGE_KEY, LABEL_KEY, MASK_KEY
-from pituitary_nfpa.enums import PredictionLabels
+from pituitary_nfpa.enums import PredictionLabels, DatasetSplit
 
 
 def prepare_dataset(
     target: PredictionLabels | str,
-) -> list[dict[str, str | int]]:
+    fold: int,
+) -> tuple[list[dict[str, str | int]], list[dict[str, str | int]]]:
     """Prepare a dataset for training.
 
     Parameters
@@ -16,12 +17,17 @@ def prepare_dataset(
     label: str
         Which label to use as the prediction target. Either "progression",
         "recurrence", or "prediction-or-recurrence".
+    fold: int
+        Which folds to use to generate train/test splits.
 
     Returns
     -------
-    list[dict[str, str | int]]:
-        List of dataset dictionaries in the format required to pass to a
-        dataloader.
+    train_data: list[dict[str, str | int]]
+        Training data. List of dataset dictionaries in the format required to
+        pass to a dataloader.
+    test_data: list[dict[str, str | int]]
+        Testing data. List of dataset dictionaries in the format required to
+        pass to a dataloader.
 
     """
     target = PredictionLabels(target)
@@ -44,15 +50,22 @@ def prepare_dataset(
             pl.max_horizontal("progression", "recurrence").alias(target_col)
         )
 
-    return [
-        {
-            IMAGE_KEY: image_path,
-            MASK_KEY: seg_path,
-            LABEL_KEY: label,
-            "mrn": mrn,
-            "accession": acc,
-        }
-        for (image_path, seg_path, label, mrn, acc) in full_df[
-            ["image_path", "seg_path", target_col, "mrn", "accession"]
-        ].iter_rows()
-    ]
+    def get_split(split_name: str) -> list[dict[str, str | int]]:
+        split_df = full_df.filter(pl.col(f"fold_{fold}") == split_name)
+        return [
+            {
+                IMAGE_KEY: image_path,
+                MASK_KEY: seg_path,
+                LABEL_KEY: label,
+                "mrn": mrn,
+                "accession": acc,
+            }
+            for (image_path, seg_path, label, mrn, acc) in split_df[
+                ["image_path", "seg_path", target_col, "mrn", "accession"]
+            ].iter_rows()
+        ]
+
+    return (
+        get_split(DatasetSplit.TRAIN.value),
+        get_split(DatasetSplit.TEST.value),
+    )

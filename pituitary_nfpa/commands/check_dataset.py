@@ -43,8 +43,8 @@ def check_dataset() -> None:
 
         output_row = {
             "case_number": case,
-            "mrn": mrn,
-            "accession": acc,
+            "mrn": mrn.strip(),
+            "accession": acc.strip(),
             "progression": progression or 0,
             "recurrence": recurrence or 0,
             "progression_or_recurrence": progression or recurrence or 0,
