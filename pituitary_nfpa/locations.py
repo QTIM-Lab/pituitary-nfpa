@@ -39,6 +39,10 @@ if not project_dataset_dir.exists():
 # Location to store metadata
 meta_dir = project_dir / "meta"
 
+# Location to store metadata
+mlflow_dir = project_dir / "mlflow"
+mlflow_db = mlflow_dir / "mlruns.db"
+
 # Location to store checkpoints
 checkpoints_dir = project_dir / "checkpoints"
 

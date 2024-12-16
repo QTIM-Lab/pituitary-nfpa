@@ -1,5 +1,6 @@
 """Main training functions."""
 import json
+import multiprocessing as mp
 from pathlib import Path
 from typing import Any, Optional
 
@@ -46,7 +47,7 @@ class PituitaryClassifier(pyl.LightningModule):
             pred,
             label,
         )
-        self.log("train_loss", loss)
+        self.logger.log_metrics({"train_loss": loss}, step=batch_idx)  # type: ignore
         return loss
 
     def validation_step(self, batch: dict[str, Any], batch_idx: int) -> torch.Tensor:
@@ -58,7 +59,7 @@ class PituitaryClassifier(pyl.LightningModule):
             pred,
             label,
         )
-        self.log("val_loss", loss)
+        self.logger.log_metrics({"val_loss": loss}, step=batch_idx)  # type: ignore
         return loss
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
@@ -96,6 +97,7 @@ def train(
     placed in a directory with this name.
 
     """
+    mp.set_start_method("spawn")
     # Read in the config file
     if not config_file.lower().endswith(".json"):
         config_file += ".json"
@@ -131,10 +133,17 @@ def train(
         batch_size=config["batch_size"],
     )
 
+    tracking_uri = f"sqlite:///{str(locations.mlflow_db.resolve())}"
+    logger = pyl.pytorch.loggers.mlflow.MLFlowLogger(
+        experiment_name="pituitary-classification",
+        tracking_uri=tracking_uri,
+    )
+
     module = PituitaryClassifier(config=config)
     trainer = pyl.Trainer(
         accelerator="cpu",
         default_root_dir=model_output_dir,
+        logger=logger,
     )
     trainer.fit(module, train_loader, val_loader)
 
