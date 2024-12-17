@@ -146,8 +146,6 @@ def train(
         target=config["target"],
         fold=config["fold"],
     )
-    train_data = train_data[:20]
-    test_data = test_data[:20]
 
     use_cache = config["use_cache"]
     use_gpu_preprocessing = config["use_gpu_preprocessing"]
@@ -194,7 +192,7 @@ def train(
 
     module = PituitaryClassifier(config=config)
     trainer = pyl.Trainer(
-        accelerator="cpu",
+        accelerator="gpu",
         default_root_dir=model_output_dir,
         log_every_n_steps=1,
         max_epochs=config["epochs"],
