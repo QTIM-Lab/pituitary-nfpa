@@ -1,4 +1,5 @@
 """Main training functions."""
+import inspect
 import json
 import multiprocessing as mp
 from pathlib import Path
@@ -6,13 +7,25 @@ from typing import Any, Optional
 
 import click
 from pycrumbs import tracked
+from pycrumbs.track import (
+    get_environment_info,
+    get_environment_vars,
+    get_installed_packages,
+    get_git_info,
+)
 
+import mlflow
 import monai
 import lightning as pyl
 import torch
+from monai.metrics.rocauc import ROCAUCMetric
 
 from pituitary_nfpa import locations
-from pituitary_nfpa.constants import IMAGE_KEY, LABEL_KEY
+from pituitary_nfpa.constants import (
+    IMAGE_KEY,
+    LABEL_KEY,
+    MLFLOW_CLASSIFER_PROJECT_NAME,
+)
 from pituitary_nfpa.data import prepare_dataset
 from pituitary_nfpa.preprocess.loaders import get_transforms
 
@@ -32,11 +45,14 @@ class PituitaryClassifier(pyl.LightningModule):
         super().__init__()
         self.config = config
 
-        self.model = monai.networks.nets.resnet18(
+        self.model = monai.networks.nets.resnet10(
             spatial_dims=3,
             num_classes=1,
             n_input_channels=1,
+            pretrained=True,
         )
+        self.train_auroc = ROCAUCMetric()
+        self.val_auroc = ROCAUCMetric()
 
     def training_step(self, batch: dict[str, Any], batch_idx: int) -> torch.Tensor:
         """Pytorch lightning training step."""
@@ -47,7 +63,8 @@ class PituitaryClassifier(pyl.LightningModule):
             pred,
             label,
         )
-        self.logger.log_metrics({"train_loss": loss}, step=batch_idx)  # type: ignore
+        self.log("train_loss", loss)  # type: ignore
+        self.train_auroc.extend(pred.detach(), label)
         return loss
 
     def validation_step(self, batch: dict[str, Any], batch_idx: int) -> torch.Tensor:
@@ -59,13 +76,28 @@ class PituitaryClassifier(pyl.LightningModule):
             pred,
             label,
         )
-        self.logger.log_metrics({"val_loss": loss}, step=batch_idx)  # type: ignore
+        self.log("val_loss", loss)  # type: ignore
+        self.val_auroc.extend(pred, label)
         return loss
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
         """Pytorch lightning configure optimizers step."""
         optimizer = torch.optim.Adam(self.parameters(), lr=self.config["lr"])
         return optimizer
+
+    def on_train_epoch_end(self) -> None:
+        """Pytorch lightning epoch end step."""
+        auroc = self.train_auroc.aggregate()
+        self.log("train_auroc", auroc)  # type: ignore
+        self.train_auroc.reset()
+        super().on_train_epoch_end()
+
+    def on_validation_epoch_end(self) -> None:
+        """Pytorch lightning epoch end step."""
+        auroc = self.val_auroc.aggregate()
+        self.log("val_auroc", auroc)  # type: ignore
+        self.val_auroc.reset()
+        super().on_validation_epoch_end()
 
 
 @click.command()
@@ -114,9 +146,21 @@ def train(
         target=config["target"],
         fold=config["fold"],
     )
+    train_data = train_data[:20]
+    test_data = test_data[:20]
 
-    train_transform = get_transforms(augmentation=True)
-    val_transform = get_transforms(augmentation=False)
+    use_cache = config["use_cache"]
+    use_gpu_preprocessing = config["use_gpu_preprocessing"]
+    train_transform = get_transforms(
+        augmentation=True,
+        use_cache=use_cache,
+        use_gpu=use_gpu_preprocessing,
+    )
+    val_transform = get_transforms(
+        augmentation=False,
+        use_cache=use_cache,
+        use_gpu=use_gpu_preprocessing,
+    )
 
     train_dataset = monai.data.CacheDataset(train_data, train_transform)
     val_dataset = monai.data.CacheDataset(test_data, val_transform)
@@ -133,19 +177,43 @@ def train(
         batch_size=config["batch_size"],
     )
 
-    tracking_uri = f"sqlite:///{str(locations.mlflow_db.resolve())}"
-    logger = pyl.pytorch.loggers.mlflow.MLFlowLogger(
-        experiment_name="pituitary-classification",
-        tracking_uri=tracking_uri,
-    )
+    mlflow.set_registry_uri(locations.mlflow_registry_uri)
+    mlflow.set_tracking_uri(locations.mlflow_tracking_uri)
+
+    # Create the project if it doesn't exist already
+    try:
+        mlflow.create_experiment(
+            name=MLFLOW_CLASSIFER_PROJECT_NAME,
+            artifact_location=str(locations.mlflow_artifacts_dir),
+        )
+    except mlflow.MlflowException:
+        pass
+
+    mlflow.set_experiment(experiment_name=MLFLOW_CLASSIFER_PROJECT_NAME)
+    mlflow.pytorch.autolog()
 
     module = PituitaryClassifier(config=config)
     trainer = pyl.Trainer(
         accelerator="cpu",
         default_root_dir=model_output_dir,
-        logger=logger,
+        log_every_n_steps=1,
+        max_epochs=config["epochs"],
     )
-    trainer.fit(module, train_loader, val_loader)
+
+    with mlflow.start_run():
+
+        py_module = inspect.getmodule(PituitaryClassifier)
+
+        if py_module is None:
+            raise RuntimeError("Cannot get module information.")
+
+        mlflow.log_params(config)
+        mlflow.log_params(get_environment_info())
+        mlflow.log_params(get_git_info(py_module, allow_dirty=True))
+        mlflow.log_params(get_installed_packages())
+        mlflow.log_params(get_environment_vars())
+
+        trainer.fit(module, train_loader, val_loader)
 
 
 if __name__ == "__main__":

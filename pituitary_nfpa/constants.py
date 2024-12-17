@@ -9,3 +9,5 @@ MASK_KEY = "mask"
 LABEL_KEY = "label"
 
 N_FOLDS = 6
+
+MLFLOW_CLASSIFER_PROJECT_NAME = "pituitary-classifier"

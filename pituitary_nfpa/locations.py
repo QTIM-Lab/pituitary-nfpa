@@ -41,7 +41,11 @@ meta_dir = project_dir / "meta"
 
 # Location to store metadata
 mlflow_dir = project_dir / "mlflow"
+mlflow_artifacts_dir = project_dir / "artifacts"
+mlflow_registry_dir = project_dir / "registry"
 mlflow_db = mlflow_dir / "mlruns.db"
+mlflow_tracking_uri = f"sqlite:///{str(mlflow_db.resolve())}"
+mlflow_registry_uri = f"file:/{str(mlflow_registry_dir.resolve())}"
 
 # Location to store checkpoints
 checkpoints_dir = project_dir / "checkpoints"

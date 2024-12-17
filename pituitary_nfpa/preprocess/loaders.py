@@ -3,6 +3,7 @@ from typing import Sequence
 
 import numpy as np
 
+from monai.transforms import RandomizableTransform, Transform
 from monai.transforms.compose import Compose
 from monai.transforms.io.dictionary import LoadImaged
 from monai.transforms.spatial.dictionary import (
@@ -16,17 +17,18 @@ from monai.transforms.croppad.dictionary import CenterSpatialCropd
 from monai.transforms.utility.dictionary import (
     DeleteItemsd,
     EnsureChannelFirstd,
-    ToTensord,
+    Identityd,
     ToDeviced,
+    ToTensord,
 )
 from monai.transforms.intensity.dictionary import (
     NormalizeIntensityd,
+    RandAdjustContrastd,
+    RandGaussianNoised,
+    RandGaussianSharpend,
+    RandGaussianSmoothd,
     RandScaleIntensityd,
     RandShiftIntensityd,
-    RandAdjustContrastd,
-    RandGaussianSmoothd,
-    RandGaussianSharpend,
-    RandGaussianNoised,
 )
 import torch
 from qtim_transforms import ForegroundCenteredCropd
@@ -34,10 +36,17 @@ from qtim_transforms import ForegroundCenteredCropd
 from pituitary_nfpa.constants import IMAGE_KEY, MASK_KEY, LABEL_KEY
 
 
+class ForceCache(Identityd, RandomizableTransform):
+    """Hack transform to force caching while having no other effect."""
+
+    pass
+
+
 def get_transforms(
     augmentation: bool = False,
     crop_size: Sequence[int] = (128, 128, 6),
     use_gpu: bool = False,
+    use_cache: bool = False,
 ) -> Compose:
     """Get the transform pipeline.
 
@@ -117,6 +126,20 @@ def get_transforms(
         ),
     ]
 
+    cache_transforms: list[Transform] = []
+    if use_cache and augmentation:
+        if use_gpu:
+            # Force caching on the CPU
+            cache_transforms.append(
+                ToDeviced(keys=[IMAGE_KEY, LABEL_KEY], device="cpu")
+            )
+        cache_transforms.append(ForceCache(keys=[IMAGE_KEY, LABEL_KEY]))
+        if use_gpu:
+            # Return to gpu after cache
+            cache_transforms.append(
+                ToDeviced(keys=[IMAGE_KEY, LABEL_KEY], device=device)
+            )
+
     spatial_aug_transforms = []
     intensity_aug_transforms = []
     if augmentation:
@@ -178,6 +201,7 @@ def get_transforms(
     return Compose(
         [
             *initial_transforms,
+            *cache_transforms,
             *spatial_aug_transforms,
             crop_transform,
             *intensity_aug_transforms,
