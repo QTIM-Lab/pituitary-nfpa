@@ -2,7 +2,7 @@
 
 #SBATCH -J pituitary-nfpa-train
 #SBATCH -p rtx8000
-#SBATCH -A defq
+#SBATCH -A qtim
 #SBATCH -n 1
 #SBATCH --cpus-per-task=3
 #SBATCH --gres=gpu:1
