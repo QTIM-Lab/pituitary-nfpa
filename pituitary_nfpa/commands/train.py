@@ -53,6 +53,18 @@ class PituitaryClassifier(pyl.LightningModule):
         self.train_auroc = ROCAUCMetric()
         self.val_auroc = ROCAUCMetric()
 
+    def configure_optimizers(self) -> torch.optim.Optimizer:
+        """Pytorch lightning configure optimizers step."""
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.config["lr"])
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": scheduler,
+                "monitor": "val_loss",
+            },
+        }
+
     def training_step(self, batch: dict[str, Any], batch_idx: int) -> torch.Tensor:
         """Pytorch lightning training step."""
         pred = self.model(batch[IMAGE_KEY])
@@ -78,11 +90,6 @@ class PituitaryClassifier(pyl.LightningModule):
         self.log("val_loss", loss)  # type: ignore
         self.val_auroc.extend(pred, label)
         return loss
-
-    def configure_optimizers(self) -> torch.optim.Optimizer:
-        """Pytorch lightning configure optimizers step."""
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.config["lr"])
-        return optimizer
 
     def on_train_epoch_end(self) -> None:
         """Pytorch lightning epoch end step."""
@@ -167,11 +174,13 @@ def train(
         batch_size=config["batch_size"],
         num_workers=config["workers"],
         shuffle=True,
+        prefetch_factor=4,
     )
     val_loader = torch.utils.data.DataLoader(
         val_dataset,
         num_workers=config["workers"],
         batch_size=config["batch_size"],
+        prefetch_factor=4,
     )
 
     mlflow.set_registry_uri(locations.mlflow_registry_uri)
@@ -189,12 +198,15 @@ def train(
     mlflow.set_experiment(experiment_name=MLFLOW_CLASSIFER_PROJECT_NAME)
     mlflow.pytorch.autolog()
 
+    lr_monitor = pyl.pytorch.callbacks.LearningRateMonitor()
+
     module = PituitaryClassifier(config=config)
     trainer = pyl.Trainer(
         accelerator="gpu",
         default_root_dir=model_output_dir,
         log_every_n_steps=1,
         max_epochs=config["epochs"],
+        callbacks=[lr_monitor],
     )
 
     with mlflow.start_run():

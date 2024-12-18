@@ -66,6 +66,7 @@ def get_transforms(
 
     """
     both_image_keys = [IMAGE_KEY, MASK_KEY]
+    output_keys = [IMAGE_KEY, LABEL_KEY]
     max_rotation_deg = 15.0
     max_rotation_rad = np.deg2rad(max_rotation_deg)
     padding_factor = 1 + 2.2 * np.cos(max_rotation_rad)
@@ -131,13 +132,13 @@ def get_transforms(
         if use_gpu:
             # Force caching on the CPU
             cache_transforms.append(
-                ToDeviced(keys=[IMAGE_KEY, LABEL_KEY], device="cpu")
+                ToDeviced(keys=output_keys, device="cpu")
             )
-        cache_transforms.append(ForceCache(keys=[IMAGE_KEY, LABEL_KEY]))
+        cache_transforms.append(ForceCache(keys=output_keys))
         if use_gpu:
             # Return to gpu after cache
             cache_transforms.append(
-                ToDeviced(keys=[IMAGE_KEY, LABEL_KEY], device=device)
+                ToDeviced(keys=output_keys, device=device)
             )
 
     spatial_aug_transforms = []
@@ -198,6 +199,11 @@ def get_transforms(
             ),
         ]
 
+    final_transforms = [
+        # Allows CUDA tensors to be shared between threads
+        ToTensord(output_keys, track_meta=False),
+    ]
+
     return Compose(
         [
             *initial_transforms,
@@ -205,6 +211,7 @@ def get_transforms(
             *spatial_aug_transforms,
             crop_transform,
             *intensity_aug_transforms,
+            *final_transforms,
         ],
         lazy=True,
     )
