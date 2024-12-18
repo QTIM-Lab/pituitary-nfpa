@@ -49,7 +49,6 @@ class PituitaryClassifier(pyl.LightningModule):
             spatial_dims=3,
             num_classes=1,
             n_input_channels=1,
-            pretrained=True,
         )
         self.train_auroc = ROCAUCMetric()
         self.val_auroc = ROCAUCMetric()
