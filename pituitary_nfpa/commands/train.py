@@ -2,6 +2,7 @@
 import inspect
 import json
 import multiprocessing as mp
+import os
 from pathlib import Path
 from typing import Any, Optional
 
@@ -24,7 +25,8 @@ from pituitary_nfpa import locations
 from pituitary_nfpa.constants import (
     IMAGE_KEY,
     LABEL_KEY,
-    MLFLOW_CLASSIFER_PROJECT_NAME,
+    MLFLOW_CLASSIFIER_PROJECT_NAME,
+    VAL_RATE,
 )
 from pituitary_nfpa.data import prepare_dataset
 from pituitary_nfpa.preprocess.loaders import get_transforms
@@ -53,7 +55,7 @@ class PituitaryClassifier(pyl.LightningModule):
         self.train_auroc = ROCAUCMetric()
         self.val_auroc = ROCAUCMetric()
 
-    def configure_optimizers(self) -> torch.optim.Optimizer:
+    def configure_optimizers(self) -> dict[str, Any]:  # type: ignore
         """Pytorch lightning configure optimizers step."""
         optimizer = torch.optim.Adam(self.parameters(), lr=self.config["lr"])
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
@@ -148,10 +150,21 @@ def train(
     with config_copy.open("w") as jf:
         json.dump(config, jf, indent=4)
 
+    fold_str: str | int | None = config["fold"]
+    if fold_str is None:
+        fold_str = os.environ.get("SLURM_ARRAY_TASK_ID")
+        if fold_str is None:
+            raise RuntimeError("Cannot determine fold.")
+    fold = int(fold_str)
+
     train_data, test_data = prepare_dataset(
         target=config["target"],
-        fold=config["fold"],
+        fold=fold,
     )
+
+    val_cutoff = int((1.0 - VAL_RATE) * len(train_data))
+    val_data = train_data[val_cutoff:]
+    train_data = train_data[:val_cutoff]
 
     use_cache = config["use_cache"]
     use_gpu_preprocessing = config["use_gpu_preprocessing"]
@@ -166,8 +179,20 @@ def train(
         use_gpu=use_gpu_preprocessing,
     )
 
-    train_dataset = monai.data.CacheDataset(train_data, train_transform)
-    val_dataset = monai.data.CacheDataset(test_data, val_transform)
+    train_dataset = monai.data.CacheDataset(
+        train_data,
+        train_transform,
+        cache_rate=1.0 if use_cache else 0.0,
+    )
+    val_dataset = monai.data.CacheDataset(
+        val_data,
+        val_transform,
+        cache_rate=1.0 if use_cache else 0.0,
+    )
+    test_dataset = monai.data.Dataset(
+        test_data,
+        val_transform,
+    )
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
@@ -182,6 +207,12 @@ def train(
         batch_size=config["batch_size"],
         prefetch_factor=4,
     )
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset,
+        num_workers=config["workers"],
+        batch_size=config["batch_size"],
+        prefetch_factor=4,
+    )
 
     mlflow.set_registry_uri(locations.mlflow_registry_uri)
     mlflow.set_tracking_uri(locations.mlflow_tracking_uri)
@@ -189,13 +220,14 @@ def train(
     # Create the project if it doesn't exist already
     try:
         mlflow.create_experiment(
-            name=MLFLOW_CLASSIFER_PROJECT_NAME,
+            name=MLFLOW_CLASSIFIER_PROJECT_NAME,
             artifact_location=str(locations.mlflow_artifacts_dir),
         )
     except mlflow.MlflowException:
         pass
 
-    mlflow.set_experiment(experiment_name=MLFLOW_CLASSIFER_PROJECT_NAME)
+    mlflow.set_experiment(experiment_name=MLFLOW_CLASSIFIER_PROJECT_NAME)
+    mlflow.enable_system_metrics_logging()
     mlflow.pytorch.autolog()
 
     lr_monitor = pyl.pytorch.callbacks.LearningRateMonitor()
@@ -209,7 +241,7 @@ def train(
         callbacks=[lr_monitor],
     )
 
-    with mlflow.start_run():
+    with mlflow.start_run(run_name=model_name):
 
         py_module = inspect.getmodule(PituitaryClassifier)
 
@@ -217,12 +249,15 @@ def train(
             raise RuntimeError("Cannot get module information.")
 
         mlflow.log_params(config)
+        mlflow.log_params({"fold_used": fold})
         mlflow.log_params(get_environment_info())
         mlflow.log_params(get_git_info(py_module, allow_dirty=True))
         mlflow.log_params(get_installed_packages())
         mlflow.log_params(get_environment_vars())
 
         trainer.fit(module, train_loader, val_loader)
+
+        trainer.test(ckpt_path="last", dataloaders=test_loader)
 
 
 if __name__ == "__main__":

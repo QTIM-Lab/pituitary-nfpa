@@ -5,6 +5,6 @@
     "fold": 0,
     "use_cache": true,
     "use_gpu_preprocessing": true,
-    "epochs": 500,
+    "epochs": 300,
     "target": "PROGRESSION_OR_RECURRENCE"
 }
