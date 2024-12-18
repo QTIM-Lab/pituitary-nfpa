@@ -56,7 +56,11 @@ class PituitaryClassifier(pyl.LightningModule):
     def configure_optimizers(self) -> torch.optim.Optimizer:
         """Pytorch lightning configure optimizers step."""
         optimizer = torch.optim.Adam(self.parameters(), lr=self.config["lr"])
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            patience=self.config["patience"],
+            min_lr=self.config["lr"] / 100.0,
+        )
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
