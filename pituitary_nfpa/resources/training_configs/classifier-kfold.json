@@ -4,6 +4,7 @@
     "batch_size": 8,
     "fold": null,
     "use_cache": true,
+    "patience": 50,
     "use_gpu_preprocessing": true,
     "epochs": 300,
     "target": "PROGRESSION_OR_RECURRENCE"
