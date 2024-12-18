@@ -245,7 +245,9 @@ def train(
         callbacks=[lr_monitor],
     )
 
-    with mlflow.start_run(run_name=model_name):
+    run_name = f"{model_name}-{fold:02d}"
+
+    with mlflow.start_run(run_name=run_name):
 
         py_module = inspect.getmodule(PituitaryClassifier)
 
