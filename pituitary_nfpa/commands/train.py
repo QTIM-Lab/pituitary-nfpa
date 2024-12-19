@@ -54,6 +54,7 @@ class PituitaryClassifier(pyl.LightningModule):
         )
         self.train_auroc = ROCAUCMetric()
         self.val_auroc = ROCAUCMetric()
+        self.test_auroc = ROCAUCMetric()
 
     def configure_optimizers(self) -> dict[str, Any]:  # type: ignore
         """Pytorch lightning configure optimizers step."""
@@ -97,6 +98,18 @@ class PituitaryClassifier(pyl.LightningModule):
         self.val_auroc.extend(pred, label)
         return loss
 
+    def test_step(self, batch: dict[str, Any], batch_idx: int):
+        """Pytorch lightning test step."""
+        pred = self.model(batch[IMAGE_KEY])
+        label = batch[LABEL_KEY][:, None]
+
+        loss = torch.nn.functional.binary_cross_entropy_with_logits(
+            pred,
+            label,
+        )
+        self.log("test_loss", loss)  # type: ignore
+        self.test_auroc.extend(pred, label)
+
     def on_train_epoch_end(self) -> None:
         """Pytorch lightning epoch end step."""
         auroc = self.train_auroc.aggregate()
@@ -110,6 +123,13 @@ class PituitaryClassifier(pyl.LightningModule):
         self.log("val_auroc", auroc)  # type: ignore
         self.val_auroc.reset()
         super().on_validation_epoch_end()
+
+    def on_test_epoch_end(self) -> None:
+        """Pytorch lightning epoch end step."""
+        auroc = self.test_auroc.aggregate()
+        self.log("test_auroc", auroc)  # type: ignore
+        self.test_auroc.reset()
+        super().on_test_epoch_end()
 
 
 @click.command()
