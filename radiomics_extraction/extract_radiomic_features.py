@@ -29,6 +29,11 @@ def extract_features(output_dir):
             for k, v in features.items()
             if k.startswith("original")
         }
+
+        # Copy basic id information from the original csv
+        for k in ["case_number", "mrn", "accession"]:
+            used_features[k] = row[k]
+
         results.append(used_features)
 
     results_df = pl.DataFrame(results)
