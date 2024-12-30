@@ -7,5 +7,6 @@
     "patience": 50,
     "use_gpu_preprocessing": true,
     "epochs": 300,
+    "pretrained": true,
     "target": "PROGRESSION_OR_RECURRENCE"
 }

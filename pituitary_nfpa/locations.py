@@ -47,6 +47,9 @@ mlflow_db = mlflow_dir / "mlruns.db"
 mlflow_tracking_uri = f"sqlite:///{str(mlflow_db.resolve())}"
 mlflow_registry_uri = f"file:/{str(mlflow_registry_dir.resolve())}"
 
+# Hugging face hub cache (locations where model weights are downloaded to)
+huggingface_cache_dir = project_dir / "huggingface_cache"
+
 # Location to store checkpoints
 checkpoints_dir = project_dir / "checkpoints"
 

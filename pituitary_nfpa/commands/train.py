@@ -47,10 +47,17 @@ class PituitaryClassifier(pyl.LightningModule):
         super().__init__()
         self.config = config
 
-        self.model = monai.networks.nets.resnet10(
+        backbone = monai.networks.nets.resnet10(
             spatial_dims=3,
             num_classes=1,
             n_input_channels=1,
+            feed_forward=False,
+            bias_downsample=False,
+            pretrained=config["pretrained"],
+        )
+        self.model.torch.nn.Sequential(
+            backbone,
+            torch.nn.Linear(512, 1),
         )
         self.train_auroc = ROCAUCMetric()
         self.val_auroc = ROCAUCMetric()
@@ -98,7 +105,7 @@ class PituitaryClassifier(pyl.LightningModule):
         self.val_auroc.extend(pred, label)
         return loss
 
-    def test_step(self, batch: dict[str, Any], batch_idx: int):
+    def test_step(self, batch: dict[str, Any], batch_idx: int) -> None:
         """Pytorch lightning test step."""
         pred = self.model(batch[IMAGE_KEY])
         label = batch[LABEL_KEY][:, None]
@@ -162,6 +169,10 @@ def train(
 
     """
     mp.set_start_method("spawn")
+
+    # Set download location to avoid home directory for large model weights
+    os.environ["HF_HUB_CACHE"] = str(locations.huggingface_cache_dir)
+
     # Read in the config file
     if not config_file.lower().endswith(".json"):
         config_file += ".json"
@@ -218,11 +229,24 @@ def train(
         val_transform,
     )
 
+    # Calculate weights for a training sampler to approximately correct class
+    # balance
+    num_positive = sum(bool(item[LABEL_KEY]) for item in train_data)
+    num_negative = len(train_data) - num_positive
+    pos_weight = 0.5 / num_positive
+    neg_weight = 0.5 / num_negative
+    train_sample_weights = [
+        pos_weight if item[LABEL_KEY] else neg_weight for item in train_data
+    ]
+    train_sampler = torch.utils.data.WeightedRandomSampler(
+        train_sample_weights, len(train_data)
+    )
+
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=config["batch_size"],
         num_workers=config["workers"],
-        shuffle=True,
+        sampler=train_sampler,
         prefetch_factor=4,
     )
     val_loader = torch.utils.data.DataLoader(
