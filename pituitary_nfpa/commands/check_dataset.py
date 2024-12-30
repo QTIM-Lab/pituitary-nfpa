@@ -3,6 +3,7 @@ import click
 import polars as pl
 from pycrumbs import tracked
 
+import SimpleITK as sitk
 from sklearn.model_selection import StratifiedKFold
 
 from pituitary_nfpa import locations
@@ -33,6 +34,7 @@ def check_dataset() -> None:
     missing_image_count = 0
     ambiguous_image_count = 0
     missing_segmentation_count = 0
+    empty_segmentation_count = 0
     ok_count = 0
 
     output_list = []
@@ -73,6 +75,14 @@ def check_dataset() -> None:
             output_list.append(output_row)
             continue
         seg_path = seg_files[0]
+        seg_im = sitk.ReadImage(str(seg_path))
+        seg_arr = sitk.GetArrayFromImage(seg_im)
+        if seg_arr.max() < 1:
+            empty_segmentation_count += 1
+            print("Empty segmentation", patient_dir)
+            output_row["exclude_reason"] = "Segmentation is empty"
+            output_list.append(output_row)
+            continue
 
         im_files = [
             f
@@ -110,6 +120,7 @@ def check_dataset() -> None:
     print("Missing image:", missing_image_count)
     print("Ambiguous image:", ambiguous_image_count)
     print("Missing segmentation:", missing_segmentation_count)
+    print("Empty segmentation:", empty_segmentation_count)
     print("OK", ok_count)
 
     output_df = pl.DataFrame(output_list)

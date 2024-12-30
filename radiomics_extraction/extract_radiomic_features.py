@@ -1,0 +1,32 @@
+# This is a standalone script that should be executed in the
+# pituitary-nfpa-radiomics environment (separate from the main project)
+import polars as pl
+from radiomics import featureextractor
+
+
+if __name__ == "__main__":
+    df_path = "/autofs/space/crater_001/projects/pituitary-nfpa/meta/working_dataframe.parquet"
+    df = pl.read_parquet(df_path)
+    df = df.filter(pl.col("include"))
+
+    extractor = featureextractor.RadiomicsFeatureExtractor()
+
+    results = []
+
+    for row in df.iter_rows(named=True):
+        try:
+            features = extractor.execute(row["image_path"], row["seg_path"])
+        except ValueError:
+            print(row["seg_path"])
+
+        # Remove the unneeded "diagnostics" features
+        used_features = {
+            k: v.item()
+            for k, v in features.items()
+            if k.startswith("original")
+        }
+        results.append(used_features)
+
+    results_df = pl.DataFrame(results)
+    features_path = "/autofs/space/crater_001/projects/pituitary-nfpa/meta/radiomic_features.parquet"
+    results_df.write_parquet(features_path)

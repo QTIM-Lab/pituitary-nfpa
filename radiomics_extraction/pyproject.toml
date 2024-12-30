@@ -1,0 +1,24 @@
+# This file controls how pip installs the package and its dependencies
+# To understand how to use it, see
+# https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html
+[tool.poetry]
+name = "pituitary-nfpa-radiomics"
+version = "0.1.0"
+# Add all run time dependencies here according to the format described here
+# https://setuptools.pypa.io/en/latest/userguide/dependency_management.html#declaring-required-dependency
+description = "Separate env for the pituitry-nfpa project using an earlier python version to accommodate pyradiomics"
+authors = [ "Christopher P. Bridge <cbridge@mgh.harvard.edu>" ]
+readme = "README.md"
+homepage = "https://github.com/QTIM-Lab/pituitary-nfpa"
+repository = "https://github.com/QTIM-Lab/pituitary-nfpa"
+documentation = "https://github.com/QTIM-Lab/pituitary-nfpa/docs"
+
+[tool.poetry.dependencies]
+python = "~3.9"
+pyradiomics = "^3.1.0"
+polars = "^1.18.0"
+numpy = "<2.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
