@@ -279,6 +279,11 @@ def train(
     mlflow.pytorch.autolog()
 
     lr_monitor = pyl.pytorch.callbacks.LearningRateMonitor()
+    checkpoint = pyl.pytorch.callbacks.ModelCheckpoint(
+        monitor='val_auroc',
+        save_last=True,
+        save_top_k=5,
+    )
 
     module = PituitaryClassifier(config=config)
     trainer = pyl.Trainer(
@@ -286,7 +291,7 @@ def train(
         default_root_dir=model_output_dir,
         log_every_n_steps=1,
         max_epochs=config["epochs"],
-        callbacks=[lr_monitor],
+        callbacks=[lr_monitor, checkpoint],
     )
 
     run_name = f"{model_name}-{fold:02d}"
@@ -307,7 +312,7 @@ def train(
 
         trainer.fit(module, train_loader, val_loader)
 
-        trainer.test(ckpt_path="last", dataloaders=test_loader)
+        trainer.test(ckpt_path="best", dataloaders=test_loader)
 
 
 if __name__ == "__main__":
