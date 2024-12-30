@@ -11,5 +11,6 @@ LABEL_KEY = "label"
 N_FOLDS = 6
 
 MLFLOW_CLASSIFIER_PROJECT_NAME = "pituitary-classifier"
+MLFLOW_RADIOMIC_PROJECT_NAME = "pituitary-radiomic-classifier"
 
 VAL_RATE = 0.2

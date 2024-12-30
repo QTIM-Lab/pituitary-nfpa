@@ -70,4 +70,5 @@ train_configs_dir = resources_dir / "training_configs"
 # Location of the master excel file
 dataset_workbook = project_dataset_dir / "nfpa-dataset-no-header.xlsx"
 working_dataframe = meta_dir / "working_dataframe.parquet"
+radiomic_features_dataframe = meta_dir / "radiomic_features.parquet"
 images_dir = project_dataset_dir / "images"
