@@ -55,7 +55,7 @@ class PituitaryClassifier(pyl.LightningModule):
             bias_downsample=False,
             pretrained=config["pretrained"],
         )
-        self.model.torch.nn.Sequential(
+        self.model = torch.nn.Sequential(
             backbone,
             torch.nn.Linear(512, 1),
         )
