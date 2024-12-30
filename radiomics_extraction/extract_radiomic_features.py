@@ -18,10 +18,7 @@ def extract_features(output_dir):
     results = []
 
     for row in df.iter_rows(named=True):
-        try:
-            features = extractor.execute(row["image_path"], row["seg_path"])
-        except ValueError:
-            print(row["seg_path"])
+        features = extractor.execute(row["image_path"], row["seg_path"])
 
         # Remove the unneeded "diagnostics" features
         used_features = {
