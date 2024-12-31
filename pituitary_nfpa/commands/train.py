@@ -55,10 +55,9 @@ class PituitaryClassifier(pyl.LightningModule):
             bias_downsample=False,
             pretrained=config["pretrained"],
         )
-        self.model = torch.nn.Sequential(
-            backbone,
-            torch.nn.Linear(512, 1),
-        )
+        head = torch.nn.Linear(512, 1)
+        head.bias.data = torch.tensor(0.0)
+        self.model = torch.nn.Sequential(backbone, head)
         self.train_auroc = ROCAUCMetric()
         self.val_auroc = ROCAUCMetric()
         self.test_auroc = ROCAUCMetric()
