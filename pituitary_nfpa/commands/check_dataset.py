@@ -10,6 +10,17 @@ from pituitary_nfpa import locations
 from pituitary_nfpa.constants import N_FOLDS
 
 
+FEATURE_COLS = {
+    "age": "age",
+    "sex 0=F,1=M": "sex",
+    "tumor size (max diameter)": "size",
+    "CS invasion": "cs_invasion",
+    "Ki-67(%)": "ki67",
+    "IHC staining 0vs1": "ihc",
+    "ACTH": "acth",
+}
+
+
 @click.command()
 @tracked(
     literal_directory=locations.working_dataframe.parent,
@@ -27,9 +38,11 @@ def check_dataset() -> None:
             "recurrence",
             "Segmentation Done",
             "Segmentation Slice",
+            *FEATURE_COLS.keys()
         ]
     ]
     df = df.drop_nulls("case number")
+    df = df.rename(FEATURE_COLS)
 
     missing_directory_count = 0
     missing_image_count = 0
@@ -40,7 +53,7 @@ def check_dataset() -> None:
 
     output_list = []
 
-    for case, mrn, acc, progression, recurrence, have_seg, desc in df.iter_rows():
+    for case, mrn, acc, progression, recurrence, have_seg, desc, *features in df.iter_rows():
         if desc is not None:
             desc = desc.replace(":", "").replace("+", "")
 
@@ -52,6 +65,7 @@ def check_dataset() -> None:
             "recurrence": recurrence or 0,
             "progression_or_recurrence": progression or recurrence or 0,
             "exclude_reason": None,
+            **{k: v for k, v in zip(FEATURE_COLS.values(), features)}
         }
 
         if have_seg is None or have_seg != "yes":
@@ -90,6 +104,7 @@ def check_dataset() -> None:
             f
             for f in patient_dir.glob("*.nrrd")
             if not f.name.startswith(".") and ".seg.nrrd" not in f.name
+            and "Segment" not in f.name
         ]
         if len(im_files) < 1:
             missing_image_count += 1
