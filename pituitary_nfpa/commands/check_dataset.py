@@ -17,7 +17,7 @@ from pituitary_nfpa.constants import N_FOLDS
 )
 def check_dataset() -> None:
     """Find usable items in dataset and write out a simplified parquet with paths."""
-    df = pl.read_excel(locations.dataset_workbook)
+    df = pl.read_excel(locations.dataset_workbook, sheet_name='Sheet1')
     df = df[
         [
             "case number",
@@ -29,6 +29,7 @@ def check_dataset() -> None:
             "Segmentation Slice",
         ]
     ]
+    df = df.drop_nulls("case number")
 
     missing_directory_count = 0
     missing_image_count = 0
@@ -50,6 +51,7 @@ def check_dataset() -> None:
             "progression": progression or 0,
             "recurrence": recurrence or 0,
             "progression_or_recurrence": progression or recurrence or 0,
+            "exclude_reason": None,
         }
 
         if have_seg is None or have_seg != "yes":
@@ -123,7 +125,7 @@ def check_dataset() -> None:
     print("Empty segmentation:", empty_segmentation_count)
     print("OK", ok_count)
 
-    output_df = pl.DataFrame(output_list)
+    output_df = pl.DataFrame(output_list, infer_schema_length=None)
     output_df = output_df.with_columns(
         include=pl.col("exclude_reason").is_null(),
     )
