@@ -66,6 +66,7 @@ def check_dataset() -> None:
         recurrence,
         have_seg,
         desc,
+        follow_up,
         *features,
     ) in df.iter_rows():
         if desc is not None:
@@ -79,6 +80,7 @@ def check_dataset() -> None:
             "recurrence": recurrence or 0,
             "progression_or_recurrence": progression or recurrence or 0,
             "exclude_reason": None,
+            "follow_up_months": follow_up,
             **{k: v for k, v in zip(FEATURE_COLS.values(), features)},
         }
 
