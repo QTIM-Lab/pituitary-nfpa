@@ -1,8 +1,7 @@
 """Fit and evaluate radiomic models."""
-import os
 from pathlib import Path
 import sys
-from typing import Any, Optional
+from typing import Optional
 
 import click
 import numpy as np
@@ -21,8 +20,6 @@ import mlflow
 
 from pituitary_nfpa import locations
 from pituitary_nfpa.constants import (
-    IMAGE_KEY,
-    LABEL_KEY,
     MLFLOW_RADIOMIC_PROJECT_NAME,
     VAL_RATE,
     N_FOLDS,
@@ -59,7 +56,7 @@ def fit_radiomics(
 
     joined_df = features_df.join(
         meta_df,
-        how='left',
+        how="left",
         on=("mrn", "accession", "case_number"),
         validate="1:1",
     )
@@ -73,9 +70,7 @@ def fit_radiomics(
         val_df = train_df[val_cutoff:]
         train_df = train_df[:val_cutoff]
 
-        feature_cols = [
-            c for c in features_df.columns if c.startswith("original")
-        ]
+        feature_cols = [c for c in features_df.columns if c.startswith("original")]
         target_col = "progression_or_recurrence"
 
         train_features = train_df[feature_cols].to_numpy()
@@ -109,61 +104,64 @@ def fit_radiomics(
         mlflow.set_experiment(experiment_name=MLFLOW_RADIOMIC_PROJECT_NAME)
         mlflow.sklearn.autolog()
 
-        run_name = f"{model_name}-{fold:02d}"
+        for estimator in [
+            sklearn.linear_model.LogisticRegression(),
+            sklearn.linear_model.Lasso(),
+            sklearn.ensemble.RandomForestClassifier(),
+            sklearn.ensemble.AdaBoostClassifier(),
+            sklearn.ensemble.GradientBoostingClassifier(),
+        ]:
 
-        with mlflow.start_run(run_name=run_name):
+            run_name = f"{model_name}-{fold:02d}-{estimator.__class__.__name__}"
 
-            py_module = sys.modules[__name__]
+            with mlflow.start_run(run_name=run_name):
 
-            if py_module is None:
-                raise RuntimeError("Cannot get module information.")
+                py_module = sys.modules[__name__]
 
-            mlflow.log_params({"fold_used": fold})
-            mlflow.log_params(get_environment_info())
-            mlflow.log_params(get_git_info(py_module, allow_dirty=True))
-            mlflow.log_params(get_installed_packages())
-            mlflow.log_params(get_environment_vars())
+                if py_module is None:
+                    raise RuntimeError("Cannot get module information.")
 
-            estimator = sklearn.ensemble.RandomForestClassifier(
-                min_samples_split=0.05,
-                min_samples_leaf=0.05,
-            )
+                mlflow.log_params({"fold_used": fold})
+                mlflow.log_params(get_environment_info())
+                mlflow.log_params(get_git_info(py_module, allow_dirty=True))
+                mlflow.log_params(get_installed_packages())
+                mlflow.log_params(get_environment_vars())
 
-            estimator.fit(
-                train_features,
-                train_labels,
-                sample_weight=train_sample_weights,
-            )
+                estimator.fit(
+                    train_features,
+                    train_labels,
+                    sample_weight=train_sample_weights,
+                )
 
-            # Validation
-            val_predictions = estimator.predict(val_features)
-            val_probs = estimator.predict_proba(val_features)[:, 1]
+                # Validation
+                val_predictions = estimator.predict(val_features)
+                val_probs = estimator.predict_proba(val_features)[:, 1]
 
-            val_auroc = metrics.roc_auc_score(
-                y_score=val_probs,
-                y_true=val_labels,
-            )
-            val_f1 = metrics.f1_score(
-                y_pred=val_predictions,
-                y_true=val_labels,
-            )
-            mlflow.log_metric('val_auroc', val_auroc)
-            mlflow.log_metric('val_f1', val_f1)
+                val_auroc = metrics.roc_auc_score(
+                    y_score=val_probs,
+                    y_true=val_labels,
+                )
+                val_f1 = metrics.f1_score(
+                    y_pred=val_predictions,
+                    y_true=val_labels,
+                )
+                mlflow.log_metric("val_auroc", val_auroc)
+                mlflow.log_metric("val_f1", val_f1)
 
-            # Testing
-            test_predictions = estimator.predict(test_features)
-            test_probs = estimator.predict_proba(test_features)[:, 1]
+                # Testing
+                test_predictions = estimator.predict(test_features)
+                test_probs = estimator.predict_proba(test_features)[:, 1]
 
-            test_auroc = metrics.roc_auc_score(
-                y_score=test_probs,
-                y_true=test_labels,
-            )
-            test_f1 = metrics.f1_score(
-                y_pred=test_predictions,
-                y_true=test_labels,
-            )
-            mlflow.log_metric('test_auroc', test_auroc)
-            mlflow.log_metric('test_f1', test_f1)
+                test_auroc = metrics.roc_auc_score(
+                    y_score=test_probs,
+                    y_true=test_labels,
+                )
+                test_f1 = metrics.f1_score(
+                    y_pred=test_predictions,
+                    y_true=test_labels,
+                )
+                mlflow.log_metric("test_auroc", test_auroc)
+                mlflow.log_metric("test_f1", test_f1)
 
 
 if __name__ == "__main__":

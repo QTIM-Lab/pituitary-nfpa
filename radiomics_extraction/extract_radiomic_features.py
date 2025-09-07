@@ -8,7 +8,8 @@ from pycrumbs.track import tracked
 
 
 @tracked(directory_parameter="output_dir")
-def extract_features(output_dir):
+def extract_features(output_dir: str) -> None:
+    """Extract radiomic features from the dataset."""
     df_path = "/autofs/space/crater_001/projects/pituitary-nfpa/meta/working_dataframe.parquet"
     df = pl.read_parquet(df_path)
     df = df.filter(pl.col("include"))
@@ -18,13 +19,12 @@ def extract_features(output_dir):
     results = []
 
     for row in df.iter_rows(named=True):
+        print(row["image_path"])
         features = extractor.execute(row["image_path"], row["seg_path"])
 
         # Remove the unneeded "diagnostics" features
         used_features = {
-            k: v.item()
-            for k, v in features.items()
-            if k.startswith("original")
+            k: v.item() for k, v in features.items() if k.startswith("original")
         }
 
         # Copy basic id information from the original csv
