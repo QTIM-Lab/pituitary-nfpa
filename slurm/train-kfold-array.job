@@ -14,6 +14,5 @@
 #SBATCH -o /homes/8/cpb28/slurm_log/pituitary-nfpa-%j.out
 
 export PYTHONPATH="${HOME}/repos/pituitary-nfpa"
-export LD_LIBRARY_PATH="/usr/pubsw/packages/CUDA/11.8/targets/x86_64-linux/lib/"
 export PYENV_VERSION='pituitary-nfpa'
 pituitary-nfpa train classifier-kfold-scratch basic-cnn

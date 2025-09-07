@@ -35,12 +35,14 @@ qtim-transforms = { git = "ssh://git@github.com/QTIM-Lab/qtim-transforms.git", b
 huggingface-hub = "^0.27.0"
 psutil = "^6.1.0"
 pynvml = "^12.0.0"
+tabpfn = "^2.1.3"
 
 [tool.poetry.group.dev.dependencies]
 # dev dependencies are those used when developing the package but are not needed
 # to run. This mostly includes linters and other quality control tools.
 # To install these packages, run "pip install -e ".[dev]""
-torch = { version = "^2.4.0", source = "torch-cu118" }
+# torch = { version = "^2.4.0", source = "torch-cu118" }
+torch = "^2.4.0"
 black = "^24.10.0"
 coverage = "^7.6.9"
 darglint = "^1.8.1"
@@ -60,15 +62,6 @@ typeguard = "^4.4.1"
 jupyterlab = "^4.3.0"
 visidata = "^3.1.1"
 nibabel = "^5.3.2"
-
-[[tool.poetry.source]]
-name = "torch-cu118"
-url = "https://download.pytorch.org/whl/cu118"
-priority = "primary"
-
-[[tool.poetry.source]]
-name = "PyPI"
-priority = "supplemental"
 
 [tool.poetry.scripts]
 pituitary-nfpa = "pituitary_nfpa.cli:run_cli"
