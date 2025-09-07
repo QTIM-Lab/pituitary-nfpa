@@ -7,7 +7,7 @@ import SimpleITK as sitk
 from sklearn.model_selection import StratifiedKFold
 
 from pituitary_nfpa import locations
-from pituitary_nfpa.constants import N_FOLDS
+from pituitary_nfpa.constants import N_FOLDS, MIN_FOLLOWUP_MONTHS
 
 
 FEATURE_COLS = {
@@ -28,7 +28,7 @@ FEATURE_COLS = {
 )
 def check_dataset() -> None:
     """Find usable items in dataset and write out a simplified parquet with paths."""
-    df = pl.read_excel(locations.dataset_workbook, sheet_name='Sheet1')
+    df = pl.read_excel(locations.dataset_workbook, sheet_name="Sheet1")
     df = df[
         [
             "case number",
@@ -38,11 +38,16 @@ def check_dataset() -> None:
             "recurrence",
             "Segmentation Done",
             "Segmentation Slice",
-            *FEATURE_COLS.keys()
+            "any",  # any follow-up (months)
+            *FEATURE_COLS.keys(),
         ]
     ]
     df = df.drop_nulls("case number")
     df = df.rename(FEATURE_COLS)
+    df = df.rename({"any": "follow_up_months"})
+
+    # Limit to cases with required follow up
+    df = df.filter(pl.col("follow_up_months") >= MIN_FOLLOWUP_MONTHS)
 
     missing_directory_count = 0
     missing_image_count = 0
@@ -53,7 +58,16 @@ def check_dataset() -> None:
 
     output_list = []
 
-    for case, mrn, acc, progression, recurrence, have_seg, desc, *features in df.iter_rows():
+    for (
+        case,
+        mrn,
+        acc,
+        progression,
+        recurrence,
+        have_seg,
+        desc,
+        *features,
+    ) in df.iter_rows():
         if desc is not None:
             desc = desc.replace(":", "").replace("+", "")
 
@@ -65,7 +79,7 @@ def check_dataset() -> None:
             "recurrence": recurrence or 0,
             "progression_or_recurrence": progression or recurrence or 0,
             "exclude_reason": None,
-            **{k: v for k, v in zip(FEATURE_COLS.values(), features)}
+            **{k: v for k, v in zip(FEATURE_COLS.values(), features)},
         }
 
         if have_seg is None or have_seg != "yes":
@@ -103,7 +117,8 @@ def check_dataset() -> None:
         im_files = [
             f
             for f in patient_dir.glob("*.nrrd")
-            if not f.name.startswith(".") and ".seg.nrrd" not in f.name
+            if not f.name.startswith(".")
+            and ".seg.nrrd" not in f.name
             and "Segment" not in f.name
         ]
         if len(im_files) < 1:

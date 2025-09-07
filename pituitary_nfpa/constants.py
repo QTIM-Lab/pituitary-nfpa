@@ -9,6 +9,7 @@ MASK_KEY = "mask"
 LABEL_KEY = "label"
 
 N_FOLDS = 6
+MIN_FOLLOWUP_MONTHS = 3
 
 MLFLOW_CLASSIFIER_PROJECT_NAME = "pituitary-classifier-2025-08"
 MLFLOW_RADIOMIC_PROJECT_NAME = "pituitary-radiomic-classifier-2025-08"
