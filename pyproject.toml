@@ -63,15 +63,6 @@ jupyterlab = "^4.3.0"
 visidata = "^3.1.1"
 nibabel = "^5.3.2"
 
-# [[tool.poetry.source]]
-# name = "torch-cu118"
-# url = "https://download.pytorch.org/whl/cu118"
-# priority = "supplemental"
-
-[[tool.poetry.source]]
-name = "PyPI"
-priority = "primary"
-
 [tool.poetry.scripts]
 pituitary-nfpa = "pituitary_nfpa.cli:run_cli"
 
