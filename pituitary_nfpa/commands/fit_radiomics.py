@@ -15,8 +15,10 @@ from pycrumbs.track import (
 )
 import sklearn
 from sklearn import metrics
+from sklearn.feature_selection import SelectKBest, f_classif
 
 import mlflow
+import tabpfn
 
 from pituitary_nfpa import locations
 from pituitary_nfpa.constants import (
@@ -29,6 +31,7 @@ from pituitary_nfpa.constants import (
 @click.command()
 @click.argument("model_name")
 @click.option("--seed", "-s", type=int, help="Random seed to use.")
+@click.option("--features", "-f", type=int, help="Number of features to select.")
 @tracked(
     literal_directory=locations.checkpoints_dir,
     subdirectory_name_parameter="model_name",
@@ -41,6 +44,7 @@ def fit_radiomics(
     model_name: str,
     model_output_dir: Path,
     seed: Optional[int] = None,
+    features: Optional[int] = None,
 ) -> None:
     """Train a model.
 
@@ -80,6 +84,13 @@ def fit_radiomics(
         test_features = test_df[feature_cols].to_numpy()
         test_labels = np.squeeze(test_df[[target_col]].to_numpy(), 1)
 
+        if features is not None:
+            selector = SelectKBest(f_classif, k=features)
+            selector.fit(train_features, train_labels)
+            train_features = selector.transform(train_features)
+            val_features = selector.transform(val_features)
+            test_features = selector.transform(test_features)
+
         # Calculate weights for training to approximately correct class balance
         num_positive = train_labels.sum()
         num_negative = len(train_labels) - num_positive
@@ -109,6 +120,7 @@ def fit_radiomics(
             sklearn.ensemble.RandomForestClassifier(),
             sklearn.ensemble.AdaBoostClassifier(),
             sklearn.ensemble.GradientBoostingClassifier(),
+            tabpfn.TabPFNClassifier(),
         ]:
 
             run_name = f"{model_name}-{fold:02d}-{estimator.__class__.__name__}"
@@ -124,6 +136,7 @@ def fit_radiomics(
                     {
                         "fold_used": fold,
                         "estimator": estimator.__class__.__name__,
+                        "n_features": features,
                     }
                 )
                 mlflow.log_params(get_environment_info())
@@ -131,10 +144,14 @@ def fit_radiomics(
                 mlflow.log_params(get_installed_packages())
                 mlflow.log_params(get_environment_vars())
 
+                kwargs = {}
+                if not isinstance(estimator, tabpfn.TabPFNClassifier):
+                    kwargs["sample_weight"] = train_sample_weights
+
                 estimator.fit(
                     train_features,
                     train_labels,
-                    sample_weight=train_sample_weights,
+                    **kwargs,
                 )
 
                 # Validation
