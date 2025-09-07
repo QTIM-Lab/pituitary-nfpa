@@ -105,8 +105,7 @@ def fit_radiomics(
         mlflow.sklearn.autolog()
 
         for estimator in [
-            sklearn.linear_model.LogisticRegression(),
-            sklearn.linear_model.Lasso(),
+            sklearn.linear_model.LogisticRegression(max_iter=10000),
             sklearn.ensemble.RandomForestClassifier(),
             sklearn.ensemble.AdaBoostClassifier(),
             sklearn.ensemble.GradientBoostingClassifier(),
@@ -121,7 +120,12 @@ def fit_radiomics(
                 if py_module is None:
                     raise RuntimeError("Cannot get module information.")
 
-                mlflow.log_params({"fold_used": fold})
+                mlflow.log_params(
+                    {
+                        "fold_used": fold,
+                        "estimator": estimator.__class__.name__,
+                    }
+                )
                 mlflow.log_params(get_environment_info())
                 mlflow.log_params(get_git_info(py_module, allow_dirty=True))
                 mlflow.log_params(get_installed_packages())
