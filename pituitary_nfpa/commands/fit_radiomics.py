@@ -123,7 +123,7 @@ def fit_radiomics(
                 mlflow.log_params(
                     {
                         "fold_used": fold,
-                        "estimator": estimator.__class__.name__,
+                        "estimator": estimator.__class__.__name__,
                     }
                 )
                 mlflow.log_params(get_environment_info())
