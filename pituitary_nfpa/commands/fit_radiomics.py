@@ -21,6 +21,7 @@ import mlflow
 import tabpfn
 
 from pituitary_nfpa import locations
+from pituitary_nfpa.preprocess.features import get_clinical_features
 from pituitary_nfpa.constants import (
     MLFLOW_RADIOMIC_PROJECT_NAME,
     VAL_RATE,
@@ -32,6 +33,18 @@ from pituitary_nfpa.constants import (
 @click.argument("model_name")
 @click.option("--seed", "-s", type=int, help="Random seed to use.")
 @click.option("--features", "-f", type=int, help="Number of features to select.")
+@click.option(
+    "--use-clinical/--no-use-clinical",
+    "-c/-C",
+    default=True,
+    help="Include clinical features",
+)
+@click.option(
+    "--use-radiomics/--no-use-radiomics",
+    "-r/-R",
+    default=True,
+    help="Include radiomic features",
+)
 @tracked(
     literal_directory=locations.checkpoints_dir,
     subdirectory_name_parameter="model_name",
@@ -43,6 +56,8 @@ from pituitary_nfpa.constants import (
 def fit_radiomics(
     model_name: str,
     model_output_dir: Path,
+    use_clinical: bool,
+    use_radiomics: bool,
     seed: Optional[int] = None,
     features: Optional[int] = None,
 ) -> None:
@@ -65,6 +80,9 @@ def fit_radiomics(
         validate="1:1",
     )
 
+    if not use_radiomics and not use_clinical:
+        raise ValueError("Must use either clinical or radiomic features.")
+
     for fold in range(N_FOLDS):
 
         train_df = joined_df.filter(pl.col(f"fold_{fold}") == "TRAIN")
@@ -74,15 +92,27 @@ def fit_radiomics(
         val_df = train_df[val_cutoff:]
         train_df = train_df[:val_cutoff]
 
-        feature_cols = [c for c in features_df.columns if c.startswith("original")]
-        target_col = "progression_or_recurrence"
+        train_features_list = []
+        val_features_list = []
+        test_features_list = []
+        if use_radiomics:
+            feature_cols = [c for c in features_df.columns if c.startswith("original")]
+            train_features_list.append(train_df[feature_cols].to_numpy())
+            val_features_list.append(val_df[feature_cols].to_numpy())
+            test_features_list.append(test_df[feature_cols].to_numpy())
+        if use_clinical:
+            train_features_list.append(get_clinical_features(train_df))
+            val_features_list.append(get_clinical_features(val_df))
+            test_features_list.append(get_clinical_features(test_df))
 
-        train_features = train_df[feature_cols].to_numpy()
+        train_features = np.column_stack(train_features_list)
+        val_features = np.column_stack(val_features_list)
+        test_features = np.column_stack(test_features_list)
+
+        target_col = "progression_or_recurrence"
         train_labels = np.squeeze(train_df[[target_col]].to_numpy(), 1)
-        val_features = val_df[feature_cols].to_numpy()
-        val_labels = np.squeeze(val_df[[target_col]].to_numpy(), 1)
-        test_features = test_df[feature_cols].to_numpy()
         test_labels = np.squeeze(test_df[[target_col]].to_numpy(), 1)
+        val_labels = np.squeeze(val_df[[target_col]].to_numpy(), 1)
 
         if features is not None:
             selector = SelectKBest(f_classif, k=features)
@@ -137,6 +167,8 @@ def fit_radiomics(
                         "fold_used": fold,
                         "estimator": estimator.__class__.__name__,
                         "n_features": features,
+                        "use_clinical": use_clinical,
+                        "use_radiomics": use_radiomics,
                     }
                 )
                 mlflow.log_params(get_environment_info())
