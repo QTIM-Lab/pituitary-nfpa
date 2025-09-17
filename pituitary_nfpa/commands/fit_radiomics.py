@@ -1,4 +1,5 @@
 """Fit and evaluate radiomic models."""
+import json
 from pathlib import Path
 import sys
 from typing import Optional
@@ -45,6 +46,11 @@ from pituitary_nfpa.constants import (
     default=True,
     help="Include radiomic features",
 )
+@click.option(
+    "--cnn-prediction-model",
+    "-m",
+    help="Model name to load CNN predictions to include in the model",
+)
 @tracked(
     literal_directory=locations.checkpoints_dir,
     subdirectory_name_parameter="model_name",
@@ -58,6 +64,7 @@ def fit_radiomics(
     model_output_dir: Path,
     use_clinical: bool,
     use_radiomics: bool,
+    cnn_prediction_model: str | None = None,
     seed: Optional[int] = None,
     features: Optional[int] = None,
 ) -> None:
@@ -83,6 +90,29 @@ def fit_radiomics(
     if not use_radiomics and not use_clinical:
         raise ValueError("Must use either clinical or radiomic features.")
 
+    fold_mapping = {}
+    if cnn_prediction_model is not None:
+        model_dirs = list(locations.checkpoints_dir.glob(f"{cnn_prediction_model}_*"))
+        if len(model_dirs) != N_FOLDS:
+            raise ValueError(f"Found {len(model_dirs)} matching the pattern")
+
+        for d in model_dirs:
+            record_file = d / "train_record.json"
+
+            with record_file.open("r") as jf:
+                train_record = json.load(jf)
+
+            fold = int(
+                train_record["environment"]["environment_variables"][
+                    "SLURM_ARRAY_TASK_ID"
+                ]
+            )
+
+            fold_mapping[fold] = d
+
+        if len(fold_mapping) != N_FOLDS:
+            raise ValueError("Did not find one model per fold")
+
     for fold in range(N_FOLDS):
 
         train_df = joined_df.filter(pl.col(f"fold_{fold}") == "TRAIN")
@@ -104,6 +134,38 @@ def fit_radiomics(
             train_features_list.append(get_clinical_features(train_df))
             val_features_list.append(get_clinical_features(val_df))
             test_features_list.append(get_clinical_features(test_df))
+        if cnn_prediction_model is not None:
+            d = fold_mapping[fold]
+            train_inferences_csv = d / "train_inferences.parquet"
+            train_inferences = pl.read_parquet(train_inferences_csv)
+            joined_inferences = train_df.join(
+                train_inferences,
+                how="left",
+                on=("mrn", "accession"),
+                maintain_order="left",
+                validate="1:1",
+            )
+            train_features_list.append(joined_inferences["prediction"].to_numpy())
+            val_inferences_csv = d / "val_inferences.parquet"
+            val_inferences = pl.read_parquet(val_inferences_csv)
+            joined_inferences = val_df.join(
+                val_inferences,
+                how="left",
+                on=("mrn", "accession"),
+                maintain_order="left",
+                validate="1:1",
+            )
+            val_features_list.append(joined_inferences["prediction"].to_numpy())
+            test_inferences_csv = d / "test_inferences.parquet"
+            test_inferences = pl.read_parquet(test_inferences_csv)
+            joined_inferences = test_df.join(
+                test_inferences,
+                how="left",
+                on=("mrn", "accession"),
+                maintain_order="left",
+                validate="1:1",
+            )
+            test_features_list.append(joined_inferences["prediction"].to_numpy())
 
         train_features = np.column_stack(train_features_list)
         val_features = np.column_stack(val_features_list)

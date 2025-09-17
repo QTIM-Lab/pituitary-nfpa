@@ -32,7 +32,7 @@ def inference(
 ) -> None:
     """Run inference with a trained model.
 
-    This will write results csv file into the existing checkpoints directory.
+    This will write results parquet file into the existing checkpoints directory.
 
     MODEL_NAME is a free text string that names the model, also the directory
     within the project checkpoints directory where the model checkpoint is
@@ -144,8 +144,8 @@ def inference(
             results["prediction"].extend(batch["prediction"].flatten().tolist())
 
         df = pl.DataFrame(results)
-        out_file = model_dir / f"{split_name}_inferences.csv"
-        df.write_csv(out_file)
+        out_file = model_dir / f"{split_name}_inferences.parquet"
+        df.write_parquet(out_file)
 
 
 if __name__ == "__main__":
