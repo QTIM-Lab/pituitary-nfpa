@@ -95,6 +95,11 @@ class PituitaryClassifier(pyl.LightningModule):
         self.log("test_loss", loss)  # type: ignore
         self.test_auroc.extend(pred, label)
 
+    def forward(self, x: dict[str, Any]) -> dict[str, Any]:
+        """Forward step, run a batch and return results."""
+        x["prediction"] = self.model(x[IMAGE_KEY])
+        return x
+
     def on_train_epoch_end(self) -> None:
         """Pytorch lightning epoch end step."""
         auroc = self.train_auroc.aggregate()
