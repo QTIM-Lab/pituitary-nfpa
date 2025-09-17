@@ -39,7 +39,8 @@ def inference(
     stored.
 
     """
-    mp.set_start_method("spawn")
+    if mp.get_start_method(allow_none=True) is None:
+        mp.set_start_method("spawn")
 
     # Set download location to avoid home directory for large model weights
     os.environ["HF_HUB_CACHE"] = str(locations.huggingface_cache_dir)
