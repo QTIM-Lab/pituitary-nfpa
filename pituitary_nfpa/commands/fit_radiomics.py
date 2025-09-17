@@ -231,6 +231,7 @@ def fit_radiomics(
                         "n_features": features,
                         "use_clinical": use_clinical,
                         "use_radiomics": use_radiomics,
+                        "cnn_prediction_model": use_radiomics,
                     }
                 )
                 mlflow.log_params(get_environment_info())
