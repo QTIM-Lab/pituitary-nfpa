@@ -127,11 +127,12 @@ def train(
     num_negative = len(train_data) - num_positive
     pos_weight = 0.5 / num_positive
     neg_weight = 0.5 / num_negative
+    cycles = config["cycles_per_epoch"]
     train_sample_weights = [
         pos_weight if item[LABEL_KEY] else neg_weight for item in train_data
     ]
     train_sampler = torch.utils.data.WeightedRandomSampler(
-        train_sample_weights, len(train_data)
+        train_sample_weights, len(train_data) * cycles
     )
 
     train_loader = torch.utils.data.DataLoader(
@@ -140,12 +141,14 @@ def train(
         num_workers=config["workers"],
         sampler=train_sampler,
         prefetch_factor=4,
+        persistent_workers=True,
     )
     val_loader = torch.utils.data.DataLoader(
         val_dataset,
         num_workers=config["workers"],
         batch_size=config["batch_size"],
         prefetch_factor=4,
+        persistent_workers=True,
     )
     test_loader = torch.utils.data.DataLoader(
         test_dataset,

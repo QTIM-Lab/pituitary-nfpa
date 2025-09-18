@@ -140,7 +140,7 @@ class PituitaryClassifier(pyl.LightningModule):
             pred,
             label,
         )
-        self.log("train_loss", loss)  # type: ignore
+        self.log("train_loss", loss, batch_size=len(pred))  # type: ignore
         self.train_auroc.extend(pred.detach(), label)
         return loss
 
@@ -153,7 +153,7 @@ class PituitaryClassifier(pyl.LightningModule):
             pred,
             label,
         )
-        self.log("val_loss", loss)  # type: ignore
+        self.log("val_loss", loss, batch_size=len(pred))  # type: ignore
         self.val_auroc.extend(pred, label)
         return loss
 
@@ -166,7 +166,7 @@ class PituitaryClassifier(pyl.LightningModule):
             pred,
             label,
         )
-        self.log("test_loss", loss)  # type: ignore
+        self.log("test_loss", loss, batch_size=len(pred))  # type: ignore
         self.test_auroc.extend(pred, label)
 
     def forward(self, x: dict[str, Any]) -> dict[str, Any]:
@@ -184,20 +184,20 @@ class PituitaryClassifier(pyl.LightningModule):
     def on_train_epoch_end(self) -> None:
         """Pytorch lightning epoch end step."""
         auroc = self.train_auroc.aggregate()
-        self.log("train_auroc", auroc)  # type: ignore
+        self.log("train_auroc", auroc, on_epoch=True)  # type: ignore
         self.train_auroc.reset()
         super().on_train_epoch_end()
 
     def on_validation_epoch_end(self) -> None:
         """Pytorch lightning epoch end step."""
         auroc = self.val_auroc.aggregate()
-        self.log("val_auroc", auroc)  # type: ignore
+        self.log("val_auroc", auroc, on_epoch=True)  # type: ignore
         self.val_auroc.reset()
         super().on_validation_epoch_end()
 
     def on_test_epoch_end(self) -> None:
         """Pytorch lightning epoch end step."""
         auroc = self.test_auroc.aggregate()
-        self.log("test_auroc", auroc)  # type: ignore
+        self.log("test_auroc", auroc, on_epoch=True)  # type: ignore
         self.test_auroc.reset()
         super().on_test_epoch_end()

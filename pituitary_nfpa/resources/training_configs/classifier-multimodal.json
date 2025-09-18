@@ -4,10 +4,11 @@
     "batch_size": 24,
     "fold": 0,
     "use_cache": true,
-    "patience": 30,
+    "patience": 10,
     "use_gpu_preprocessing": true,
-    "epochs": 300,
+    "epochs": 100,
     "pretrained": false,
     "use_clinical": true,
+    "cycles_per_epoch": 50,
     "target": "PROGRESSION_OR_RECURRENCE"
 }
