@@ -176,6 +176,7 @@ def train(
         checkpoint=True,
         checkpoint_monitor="val_auroc",
         checkpoint_mode="max",
+        checkpoint_save_best_only=True,
     )
 
     lr_monitor = pyl.pytorch.callbacks.LearningRateMonitor()
