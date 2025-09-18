@@ -9,5 +9,6 @@
     "epochs": 100,
     "pretrained": false,
     "use_clinical": true,
+    "cycles_per_epoch": 50,
     "target": "PROGRESSION_OR_RECURRENCE"
 }
