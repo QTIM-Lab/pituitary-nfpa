@@ -8,5 +8,6 @@
     "use_gpu_preprocessing": true,
     "epochs": 300,
     "pretrained": false,
+    "use_clinical": false,
     "target": "PROGRESSION_OR_RECURRENCE"
 }

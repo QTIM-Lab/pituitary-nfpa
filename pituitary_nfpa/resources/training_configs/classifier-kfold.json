@@ -1,6 +1,6 @@
 {
     "lr": 0.000001,
-    "workers": 2,
+    "workers": 3,
     "batch_size": 8,
     "fold": null,
     "use_cache": true,
@@ -8,5 +8,6 @@
     "use_gpu_preprocessing": true,
     "epochs": 300,
     "pretrained": true,
+    "use_clinical": false,
     "target": "PROGRESSION_OR_RECURRENCE"
 }

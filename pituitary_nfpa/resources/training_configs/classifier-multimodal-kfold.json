@@ -1,0 +1,13 @@
+{
+    "lr": 0.0001,
+    "workers": 2,
+    "batch_size": 24,
+    "fold": null,
+    "use_cache": true,
+    "patience": 30,
+    "use_gpu_preprocessing": true,
+    "epochs": 300,
+    "pretrained": false,
+    "use_clinical": true,
+    "target": "PROGRESSION_OR_RECURRENCE"
+}

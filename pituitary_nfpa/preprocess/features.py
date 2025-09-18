@@ -2,6 +2,9 @@ import numpy as np
 import polars as pl
 
 
+N_CLINICAL_FEATURES = 5
+
+
 def get_clinical_features(df: pl.DataFrame) -> np.ndarray:
     """Get formatted clinical features.
 

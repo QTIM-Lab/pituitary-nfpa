@@ -6,9 +6,63 @@ import torch
 from monai.metrics.rocauc import ROCAUCMetric
 
 from pituitary_nfpa.constants import (
+    CLINICAL_DATA_KEY,
     IMAGE_KEY,
     LABEL_KEY,
 )
+from pituitary_nfpa.features import N_CLINICAL_FEATURES
+
+
+CLINICAL_MODEL_WIDTH = 32
+
+
+class JointFusionModel(torch.nn.Module):
+    """Joint fusion model with two feature encoders and a head."""
+
+    def __init__(
+        self,
+        model1: torch.nn.Module,
+        model2: torch.nn.Module,
+        head: torch.nn.Module,
+    ) -> None:
+        """Initializer.
+
+        Parameters
+        ----------
+        model1: torch.nn.Module
+            Encoder for the first input.
+        model2: torch.nn.Module
+            Encoder for the second input.
+        head: torch.nn.Module
+            Head, takes as input the outputs of the model1 and model2,
+            concatenated down axis 1 and produces the output.
+
+        """
+        super().__init__()
+        self.model1 = model1
+        self.model2 = model2
+        self.head = head
+
+    def forward(self, input1: torch.Tensor, input2: torch.Tensor) -> torch.Tensor:
+        """Forward method.
+
+        Parameters
+        ----------
+        input1: torch.Tensor
+            Input to the first model.
+        input2: torch.Tensor
+            Input to the second model.
+
+        Returns
+        -------
+        output: torch.Tensor
+            Output of the head
+
+        """
+        f_1 = self.model1(input1)
+        f_2 = self.model2(input2)
+        f_all = torch.concat([f_1, f_2], dim=1)
+        return self.head(f_all)
 
 
 class PituitaryClassifier(pyl.LightningModule):
@@ -34,9 +88,29 @@ class PituitaryClassifier(pyl.LightningModule):
             bias_downsample=False,
             pretrained=config["pretrained"],
         )
-        head = torch.nn.Linear(512, 1)
+
+        n_features = 512  # features at output of model
+        if config["use_clinical"]:
+            n_features += CLINICAL_MODEL_WIDTH
+
+        head = torch.nn.Linear(n_features, 1)
         head.bias.data = torch.tensor(0.0)
-        self.model = torch.nn.Sequential(backbone, head)
+
+        self.model: torch.nn.Module
+
+        if config["use_clinical"]:
+            clinical_model = torch.nn.Sequential(
+                torch.nn.Linear(N_CLINICAL_FEATURES, CLINICAL_MODEL_WIDTH),
+                torch.nn.SiLU(),
+                torch.nn.Linear(CLINICAL_MODEL_WIDTH, CLINICAL_MODEL_WIDTH),
+                torch.nn.SiLU(),
+                torch.nn.Linear(CLINICAL_MODEL_WIDTH, CLINICAL_MODEL_WIDTH),
+                torch.nn.SiLU(),
+            )
+            self.model = JointFusionModel(backbone, clinical_model, head)
+        else:
+            self.model = torch.nn.Sequential(backbone, head)
+
         self.train_auroc = ROCAUCMetric()
         self.val_auroc = ROCAUCMetric()
         self.test_auroc = ROCAUCMetric()
@@ -59,7 +133,7 @@ class PituitaryClassifier(pyl.LightningModule):
 
     def training_step(self, batch: dict[str, Any], batch_idx: int) -> torch.Tensor:
         """Pytorch lightning training step."""
-        pred = self.model(batch[IMAGE_KEY])
+        pred = self.forward_tensors(batch)
         label = batch[LABEL_KEY][:, None]
 
         loss = torch.nn.functional.binary_cross_entropy_with_logits(
@@ -72,7 +146,7 @@ class PituitaryClassifier(pyl.LightningModule):
 
     def validation_step(self, batch: dict[str, Any], batch_idx: int) -> torch.Tensor:
         """Pytorch lightning validation step."""
-        pred = self.model(batch[IMAGE_KEY])
+        pred = self.forward_tensors(batch)
         label = batch[LABEL_KEY][:, None]
 
         loss = torch.nn.functional.binary_cross_entropy_with_logits(
@@ -85,7 +159,7 @@ class PituitaryClassifier(pyl.LightningModule):
 
     def test_step(self, batch: dict[str, Any], batch_idx: int) -> None:
         """Pytorch lightning test step."""
-        pred = self.model(batch[IMAGE_KEY])
+        pred = self.forward_tensors(batch)
         label = batch[LABEL_KEY][:, None]
 
         loss = torch.nn.functional.binary_cross_entropy_with_logits(
@@ -97,8 +171,15 @@ class PituitaryClassifier(pyl.LightningModule):
 
     def forward(self, x: dict[str, Any]) -> dict[str, Any]:
         """Forward step, run a batch and return results."""
-        x["prediction"] = self.model(x[IMAGE_KEY])
+        x["prediction"] = self.forward_tensors(x)
         return x
+
+    def forward_tensors(self, x: dict[str, Any]) -> torch.Tensor:
+        """Produces the prediction tensor from input dictionary."""
+        if self.config.get("use_clinical", False):
+            return self.model(x[IMAGE_KEY], x[CLINICAL_DATA_KEY])
+
+        return self.model(x[IMAGE_KEY])
 
     def on_train_epoch_end(self) -> None:
         """Pytorch lightning epoch end step."""
