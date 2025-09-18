@@ -10,7 +10,7 @@ from pituitary_nfpa.constants import (
     IMAGE_KEY,
     LABEL_KEY,
 )
-from pituitary_nfpa.features import N_CLINICAL_FEATURES
+from pituitary_nfpa.preprocess.features import N_CLINICAL_FEATURES
 
 
 CLINICAL_MODEL_WIDTH = 32
