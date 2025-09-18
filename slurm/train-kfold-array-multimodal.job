@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+#SBATCH --array 0-5
+#SBATCH -J pituitary-nfpa-train
+#SBATCH -p rtx8000
+#SBATCH -A qtim
+#SBATCH -n 1
+#SBATCH --cpus-per-task=3
+#SBATCH --gres=gpu:1
+#SBATCH -t 6:00:00
+#SBATCH --mem 50G
+#SBATCH --mail-user cbridge@mgh.harvard.edu
+#SBATCH --mail-type ALL
+#SBATCH -o /homes/8/cpb28/slurm_log/pituitary-nfpa-%j.out
+
+export PYTHONPATH="${HOME}/repos/pituitary-nfpa"
+export PYENV_VERSION='pituitary-nfpa'
+pituitary-nfpa train classifier-multimodal-kfold multimodal-cnn
