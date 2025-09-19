@@ -8,12 +8,15 @@ from typing import cast
 import click
 from pycrumbs import tracked
 import monai
+import mlflow
 import polars as pl
+import pandas as pd
 import lightning as pyl
+from sklearn.metrics import roc_auc_score
 import torch
 
 from pituitary_nfpa import locations
-from pituitary_nfpa.constants import VAL_RATE
+from pituitary_nfpa.constants import VAL_RATE, MLFLOW_CLASSIFIER_PROJECT_NAME
 from pituitary_nfpa.data import prepare_dataset
 from pituitary_nfpa.preprocess.loaders import get_transforms
 from pituitary_nfpa.train.modules import PituitaryClassifier
@@ -29,7 +32,7 @@ from pituitary_nfpa.train.modules import PituitaryClassifier
 def inference(
     model_name: str,
     model_dir: Path,
-) -> None:
+) -> dict[str, float]:
     """Run inference with a trained model.
 
     This will write results parquet file into the existing checkpoints directory.
@@ -51,12 +54,13 @@ def inference(
     with config_file.open("r") as jf:
         config = json.load(jf)
 
+    train_record_file = model_dir / "train_record.json"
+    with train_record_file.open("r") as jf:
+        train_record = json.load(jf)
+
     fold_str: str | int | None = config["fold"]
+    # Need to get the fold from the train record
     if fold_str is None:
-        # Need to load in the train record to get the fold
-        train_record_file = model_dir / "train_record.json"
-        with train_record_file.open("r") as jf:
-            train_record = json.load(jf)
         fold_str = train_record["environment"]["environment_variables"][
             "SLURM_ARRAY_TASK_ID"
         ]
@@ -110,9 +114,26 @@ def inference(
         prefetch_factor=4,
     )
 
-    ckpt_path = next(
-        (model_dir / "lightning_logs" / "version_0" / "checkpoints").glob("*.ckpt")
-    )
+    # Get the checkpoint file. Due to a misunderstanding, there are two
+    # checkpoint directories for each model. One that mlflow logging created,
+    # and another by pytorch lightning. We want the mlflow one, since that
+    # stored the "best" val_auroc checkpoint, whereas the copy in the main main
+    # directory is the latest (and these models overfit badly))
+    # To get the location of the mlflow version, we need to do some mlflow
+    # queries
+    original_model_name = train_record["called_function"]["parameters"]["model_name"]
+    original_model_name += f"-{fold:02}"
+    mlflow.set_tracking_uri(locations.mlflow_tracking_uri)
+    mlflow.set_registry_uri(locations.mlflow_registry_uri)
+    mlflow.set_experiment(MLFLOW_CLASSIFIER_PROJECT_NAME)
+    runs_df = cast(pd.DataFrame, mlflow.search_runs())
+    runs_df = runs_df[runs_df["tags.mlflow.runName"] == original_model_name]  # type: ignore
+
+    if len(runs_df) != 1:
+        raise RuntimeError(f"Found {len(runs_df)} runs matching this name")
+
+    artifact_dir = Path(runs_df.iloc[0].artifact_uri)
+    ckpt_path = artifact_dir / "checkpoints/latest_checkpoint.pth"
     module = PituitaryClassifier.load_from_checkpoint(ckpt_path, config=config)
 
     trainer = pyl.Trainer(
@@ -121,6 +142,8 @@ def inference(
         log_every_n_steps=1,
         max_epochs=config["epochs"],
     )
+
+    split_results = {}
 
     for split_name, loader in [
         ("train", train_loader),
@@ -143,9 +166,16 @@ def inference(
             results["label"].extend(batch["label"].tolist())
             results["prediction"].extend(batch["prediction"].flatten().tolist())
 
+        auroc = roc_auc_score(y_true=results["label"], y_score=results["prediction"])
+        print(split_name, auroc)
+
         df = pl.DataFrame(results)
         out_file = model_dir / f"{split_name}_inferences.parquet"
         df.write_parquet(out_file)
+
+        split_results[split_name] = auroc
+
+    return split_results
 
 
 if __name__ == "__main__":
