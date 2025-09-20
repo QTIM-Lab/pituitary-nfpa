@@ -90,7 +90,8 @@ class PituitaryClassifier(pyl.LightningModule):
         )
 
         n_features = 512  # features at output of model
-        if config["use_clinical"]:
+        use_clinical = config.get("use_clinical", False)
+        if use_clinical:
             n_features += CLINICAL_MODEL_WIDTH
 
         head = torch.nn.Linear(n_features, 1)
@@ -98,7 +99,7 @@ class PituitaryClassifier(pyl.LightningModule):
 
         self.model: torch.nn.Module
 
-        if config["use_clinical"]:
+        if use_clinical:
             clinical_model = torch.nn.Sequential(
                 torch.nn.Linear(N_CLINICAL_FEATURES, CLINICAL_MODEL_WIDTH),
                 torch.nn.SiLU(),
