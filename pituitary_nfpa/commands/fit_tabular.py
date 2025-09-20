@@ -59,7 +59,7 @@ from pituitary_nfpa.constants import (
     directory_injection_parameter="model_output_dir",
     seed_torch=False,
 )
-def fit_radiomics(
+def fit_tabular(
     model_name: str,
     model_output_dir: Path,
     use_clinical: bool,
@@ -68,7 +68,9 @@ def fit_radiomics(
     seed: Optional[int] = None,
     features: Optional[int] = None,
 ) -> None:
-    """Train a model.
+    """Train a tabular model.
+
+    Inputs are some combination of clinical, radiomic, and CNN predictions.
 
     This will create a new directory in the checkpoints directory containing
     model weights and any other files associated with model training.
@@ -112,6 +114,9 @@ def fit_radiomics(
 
         if len(fold_mapping) != N_FOLDS:
             raise ValueError("Did not find one model per fold")
+
+    per_fold_val_aurocs: dict[str, list[float]] = {}
+    per_fold_test_aurocs: dict[str, list[float]] = {}
 
     for fold in range(N_FOLDS):
 
@@ -214,8 +219,13 @@ def fit_radiomics(
             sklearn.ensemble.GradientBoostingClassifier(),
             tabpfn.TabPFNClassifier(),
         ]:
+            estimator_name = estimator.__class__.__name__
 
-            run_name = f"{model_name}-{fold:02d}-{estimator.__class__.__name__}"
+            if estimator_name not in per_fold_val_aurocs:
+                per_fold_val_aurocs[estimator_name] = []
+                per_fold_test_aurocs[estimator_name] = []
+
+            run_name = f"{model_name}-{fold:02d}-{estimator_name}"
 
             with mlflow.start_run(run_name=run_name):
 
@@ -227,7 +237,7 @@ def fit_radiomics(
                 mlflow.log_params(
                     {
                         "fold_used": fold,
-                        "estimator": estimator.__class__.__name__,
+                        "estimator": estimator_name,
                         "n_features": features,
                         "use_clinical": use_clinical,
                         "use_radiomics": use_radiomics,
@@ -263,6 +273,7 @@ def fit_radiomics(
                 )
                 mlflow.log_metric("val_auroc", val_auroc)
                 mlflow.log_metric("val_f1", val_f1)
+                per_fold_val_aurocs[estimator_name].append(val_auroc)
 
                 # Testing
                 test_predictions = estimator.predict(test_features)
@@ -278,7 +289,18 @@ def fit_radiomics(
                 )
                 mlflow.log_metric("test_auroc", test_auroc)
                 mlflow.log_metric("test_f1", test_f1)
+                per_fold_test_aurocs[estimator_name].append(test_auroc)
+
+    print("Validation AUROCs")
+    for estimator_name, aurocs in per_fold_val_aurocs.items():
+        avg = np.mean(aurocs).item()
+        print(f"{estimator_name}: {avg:.3f}")
+
+    print("Test AUROCs")
+    for estimator_name, aurocs in per_fold_val_aurocs.items():
+        avg = np.mean(aurocs).item()
+        print(f"{estimator_name}: {avg:.3f}")
 
 
 if __name__ == "__main__":
-    fit_radiomics()
+    fit_tabular()
