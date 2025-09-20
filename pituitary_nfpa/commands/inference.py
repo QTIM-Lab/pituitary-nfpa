@@ -42,6 +42,7 @@ def inference(
     stored.
 
     """
+    print(model_name, model_dir)
     if mp.get_start_method(allow_none=True) is None:
         mp.set_start_method("spawn")
 
@@ -98,20 +99,14 @@ def inference(
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=config["batch_size"],
-        num_workers=config["workers"],
-        prefetch_factor=4,
     )
     val_loader = torch.utils.data.DataLoader(
         val_dataset,
-        num_workers=config["workers"],
         batch_size=config["batch_size"],
-        prefetch_factor=4,
     )
     test_loader = torch.utils.data.DataLoader(
         test_dataset,
-        num_workers=config["workers"],
         batch_size=config["batch_size"],
-        prefetch_factor=4,
     )
 
     # Get the checkpoint file. Due to a misunderstanding, there are two
