@@ -297,7 +297,7 @@ def fit_tabular(
         print(f"{estimator_name}: {avg:.3f}")
 
     print("Test AUROCs")
-    for estimator_name, aurocs in per_fold_val_aurocs.items():
+    for estimator_name, aurocs in per_fold_test_aurocs.items():
         avg = np.mean(aurocs).item()
         print(f"{estimator_name}: {avg:.3f}")
 
