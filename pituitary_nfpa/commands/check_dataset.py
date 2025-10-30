@@ -18,6 +18,12 @@ FEATURE_COLS = {
     "Ki-67(%)": "ki67",
     "IHC staining 0vs1": "ihc",
     "ACTH": "acth",
+    "LH": "ls",
+    "FSH": "fsh",
+    "α-subunit": "alpha_subunit",
+    "GH": "gh",
+    "PRL": "prl",
+    "TSH": "tsh",
 }
 
 
@@ -83,6 +89,11 @@ def check_dataset() -> None:
             "follow_up_months": follow_up,
             **{k: v for k, v in zip(FEATURE_COLS.values(), features)},
         }
+
+        if follow_up < MIN_FOLLOWUP_MONTHS:
+            output_row["exclude_reason"] = "Insufficient follow-up"
+            output_list.append(output_row)
+            continue
 
         if have_seg is None or have_seg != "yes":
             output_row["exclude_reason"] = "Segmentation not performed"
