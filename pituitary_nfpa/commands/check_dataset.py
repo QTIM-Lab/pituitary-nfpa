@@ -52,9 +52,6 @@ def check_dataset() -> None:
     df = df.rename(FEATURE_COLS)
     df = df.rename({"any": "follow_up_months"})
 
-    # Limit to cases with required follow up
-    df = df.filter(pl.col("follow_up_months") >= MIN_FOLLOWUP_MONTHS)
-
     missing_directory_count = 0
     missing_image_count = 0
     ambiguous_image_count = 0
@@ -63,6 +60,18 @@ def check_dataset() -> None:
     ok_count = 0
 
     output_list = []
+
+    def normalize_ftr(v: str | float | int | None) -> float | int | None:
+        if v is None:
+            return None
+        if isinstance(v, (float, int)):
+            return v
+        if isinstance(v, str):
+            # Get rid of spaces
+            v = v.replace(" ", "")
+            if len(v) == 0:
+                return None
+        return int(v)
 
     for (
         case,
@@ -87,7 +96,7 @@ def check_dataset() -> None:
             "progression_or_recurrence": progression or recurrence or 0,
             "exclude_reason": None,
             "follow_up_months": follow_up,
-            **{k: v for k, v in zip(FEATURE_COLS.values(), features)},
+            **{k: normalize_ftr(v) for k, v in zip(FEATURE_COLS.values(), features)},
         }
 
         if follow_up < MIN_FOLLOWUP_MONTHS:

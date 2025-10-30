@@ -3676,6 +3676,17 @@ files = [
 ]
 
 [[package]]
+name = "nvidia-nccl-cu11"
+version = "2.21.5"
+description = "NVIDIA Collective Communication Library (NCCL) Runtime"
+optional = false
+python-versions = ">=3"
+groups = ["main"]
+files = [
+    {file = "nvidia_nccl_cu11-2.21.5-py3-none-manylinux2014_x86_64.whl", hash = "sha256:49d8350629c7888701d1fd200934942671cb5c728f49acc5a0b3a768820bed29"},
+]
+
+[[package]]
 name = "nvidia-nccl-cu12"
 version = "2.21.5"
 description = "NVIDIA Collective Communication Library (NCCL) Runtime"
@@ -6597,4 +6608,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "~3.12"
-content-hash = "fdc5a23d0e28707c920385288afbbe306df4ea257476ea0547d4e3af44b50c1c"
+content-hash = "2c7b731838fbc84c1bad0ee7bd5308669dee812aa01538f513a4ce3c7697bb70"
