@@ -1,4 +1,5 @@
 """Fit and evaluate radiomic models."""
+from enum import Enum
 import json
 from pathlib import Path
 import sys
@@ -30,10 +31,25 @@ from pituitary_nfpa.constants import (
 )
 
 
+class RadiomicFeatureGroups(Enum):
+    """Enumeration for groups of radiomic features that can be used."""
+
+    SHAPE = "SHAPE"
+    FIRST_ORDER = "FIRST_ORDER"  # includes shape
+    ALL = "ALL"
+
+
 @click.command()
 @click.argument("model_name")
 @click.option("--seed", "-s", type=int, help="Random seed to use.")
 @click.option("--features", "-f", type=int, help="Number of features to select.")
+@click.option(
+    "--radiomic-groups",
+    "-g",
+    type=click.Choice([v.value for v in RadiomicFeatureGroups]),
+    default="ALL",
+    help="Which groups of radiomic features to include.",
+)
 @click.option(
     "--use-clinical/--no-use-clinical",
     "-c/-C",
@@ -67,6 +83,7 @@ def fit_tabular(
     cnn_prediction_model: str | None = None,
     seed: Optional[int] = None,
     features: Optional[int] = None,
+    radiomic_groups: str = "ALL",
 ) -> None:
     """Train a tabular model.
 
@@ -130,15 +147,48 @@ def fit_tabular(
         train_features_list = []
         val_features_list = []
         test_features_list = []
+
+        # TabPFN can deal natively with missing features, but the other models
+        # can't. So keep a separate set of features containing NaNs for TabPFN
+        train_features_missing_list = []
+        val_features_missing_list = []
+        test_features_missing_list = []
         if use_radiomics:
-            feature_cols = [c for c in features_df.columns if c.startswith("original")]
+            if radiomic_groups == "SHAPE":
+                feature_cols = [
+                    c for c in features_df.columns if c.startswith("original_shape")
+                ]
+            elif radiomic_groups == "FIRST_ORDER":
+                feature_cols = [
+                    c
+                    for c in features_df.columns
+                    if c.startswith("original_shape")
+                    or c.startswith("original_first_order")
+                ]
+            elif radiomic_groups == "ALL":
+                feature_cols = [
+                    c for c in features_df.columns if c.startswith("original")
+                ]
             train_features_list.append(train_df[feature_cols].to_numpy())
             val_features_list.append(val_df[feature_cols].to_numpy())
             test_features_list.append(test_df[feature_cols].to_numpy())
+
+            train_features_missing_list.append(train_df[feature_cols].to_numpy())
+            val_features_missing_list.append(val_df[feature_cols].to_numpy())
+            test_features_missing_list.append(test_df[feature_cols].to_numpy())
         if use_clinical:
             train_features_list.append(get_clinical_features(train_df))
             val_features_list.append(get_clinical_features(val_df))
             test_features_list.append(get_clinical_features(test_df))
+            train_features_missing_list.append(
+                get_clinical_features(train_df, impute_missing=False)
+            )
+            val_features_missing_list.append(
+                get_clinical_features(val_df, impute_missing=False)
+            )
+            test_features_missing_list.append(
+                get_clinical_features(test_df, impute_missing=False)
+            )
         if cnn_prediction_model is not None:
             d = fold_mapping[fold]
             train_inferences_csv = d / "train_inferences.parquet"
@@ -151,6 +201,9 @@ def fit_tabular(
                 validate="1:1",
             )
             train_features_list.append(joined_inferences["prediction"].to_numpy())
+            train_features_missing_list.append(
+                joined_inferences["prediction"].to_numpy()
+            )
             val_inferences_csv = d / "val_inferences.parquet"
             val_inferences = pl.read_parquet(val_inferences_csv)
             joined_inferences = val_df.join(
@@ -161,6 +214,7 @@ def fit_tabular(
                 validate="1:1",
             )
             val_features_list.append(joined_inferences["prediction"].to_numpy())
+            val_features_missing_list.append(joined_inferences["prediction"].to_numpy())
             test_inferences_csv = d / "test_inferences.parquet"
             test_inferences = pl.read_parquet(test_inferences_csv)
             joined_inferences = test_df.join(
@@ -171,10 +225,16 @@ def fit_tabular(
                 validate="1:1",
             )
             test_features_list.append(joined_inferences["prediction"].to_numpy())
+            test_features_missing_list.append(
+                joined_inferences["prediction"].to_numpy()
+            )
 
         train_features = np.column_stack(train_features_list)
         val_features = np.column_stack(val_features_list)
         test_features = np.column_stack(test_features_list)
+        train_features_missing = np.column_stack(train_features_missing_list)
+        val_features_missing = np.column_stack(val_features_missing_list)
+        test_features_missing = np.column_stack(test_features_missing_list)
 
         target_col = "progression_or_recurrence"
         train_labels = np.squeeze(train_df[[target_col]].to_numpy(), 1)
@@ -187,6 +247,9 @@ def fit_tabular(
             train_features = selector.transform(train_features)
             val_features = selector.transform(val_features)
             test_features = selector.transform(test_features)
+            train_features_missing = selector.transform(train_features_missing)
+            val_features_missing = selector.transform(val_features_missing)
+            test_features_missing = selector.transform(test_features_missing)
 
         # Calculate weights for training to approximately correct class balance
         num_positive = train_labels.sum()
@@ -220,6 +283,7 @@ def fit_tabular(
             tabpfn.TabPFNClassifier(),
         ]:
             estimator_name = estimator.__class__.__name__
+            print(estimator_name)
 
             if estimator_name not in per_fold_val_aurocs:
                 per_fold_val_aurocs[estimator_name] = []
@@ -250,18 +314,26 @@ def fit_tabular(
                 mlflow.log_params(get_environment_vars())
 
                 kwargs = {}
-                if not isinstance(estimator, tabpfn.TabPFNClassifier):
+                if isinstance(estimator, tabpfn.TabPFNClassifier):
+                    # Use version with NaNs only for TabPFN
+                    train_features_to_use = train_features_missing
+                    val_features_to_use = val_features_missing
+                    test_features_to_use = test_features_missing
+                else:
+                    train_features_to_use = train_features
+                    val_features_to_use = val_features
+                    test_features_to_use = test_features
                     kwargs["sample_weight"] = train_sample_weights
 
                 estimator.fit(
-                    train_features,
+                    train_features_to_use,
                     train_labels,
                     **kwargs,
                 )
 
                 # Validation
-                val_predictions = estimator.predict(val_features)
-                val_probs = estimator.predict_proba(val_features)[:, 1]
+                val_predictions = estimator.predict(val_features_to_use)
+                val_probs = estimator.predict_proba(val_features_to_use)[:, 1]
 
                 val_auroc = metrics.roc_auc_score(
                     y_score=val_probs,
@@ -276,8 +348,8 @@ def fit_tabular(
                 per_fold_val_aurocs[estimator_name].append(val_auroc)
 
                 # Testing
-                test_predictions = estimator.predict(test_features)
-                test_probs = estimator.predict_proba(test_features)[:, 1]
+                test_predictions = estimator.predict(test_features_to_use)
+                test_probs = estimator.predict_proba(test_features_to_use)[:, 1]
 
                 test_auroc = metrics.roc_auc_score(
                     y_score=test_probs,

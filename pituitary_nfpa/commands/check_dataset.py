@@ -18,7 +18,7 @@ FEATURE_COLS = {
     "Ki-67(%)": "ki67",
     "IHC staining 0vs1": "ihc",
     "ACTH": "acth",
-    "LH": "ls",
+    "LH": "lh",
     "FSH": "fsh",
     "α-subunit": "alpha_subunit",
     "GH": "gh",
