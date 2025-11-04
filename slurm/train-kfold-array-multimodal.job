@@ -13,6 +13,7 @@
 #SBATCH --mail-type ALL
 #SBATCH -o /homes/8/cpb28/slurm_log/pituitary-nfpa-%j.out
 
+export LD_LIBRARY_PATH="/usr/pubsw/packages/CUDA/12.9/targets/x86_64-linux/lib/"
 export PYTHONPATH="${HOME}/repos/pituitary-nfpa"
 export PYENV_VERSION='pituitary-nfpa'
 pituitary-nfpa train classifier-multimodal-kfold multimodal-cnn
