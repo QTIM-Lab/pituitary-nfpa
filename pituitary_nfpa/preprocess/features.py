@@ -2,7 +2,7 @@ import numpy as np
 import polars as pl
 
 
-N_CLINICAL_FEATURES = 5
+N_CLINICAL_FEATURES = 12
 
 
 def get_clinical_features(
