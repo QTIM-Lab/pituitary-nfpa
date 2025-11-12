@@ -204,10 +204,8 @@ def fit_tabular(
             train_features_missing_list.append(
                 joined_inferences["prediction"].to_numpy()
             )
-            val_inferences_csv = d / "val_inferences.parquet"
-            val_inferences = pl.read_parquet(val_inferences_csv)
             joined_inferences = val_df.join(
-                val_inferences,
+                train_inferences,  # val is a subset of train
                 how="left",
                 on=("mrn", "accession"),
                 maintain_order="left",

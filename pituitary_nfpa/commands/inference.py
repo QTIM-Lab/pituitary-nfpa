@@ -16,7 +16,7 @@ from sklearn.metrics import roc_auc_score
 import torch
 
 from pituitary_nfpa import locations
-from pituitary_nfpa.constants import VAL_RATE, MLFLOW_CLASSIFIER_PROJECT_NAME
+from pituitary_nfpa.constants import MLFLOW_CLASSIFIER_PROJECT_NAME
 from pituitary_nfpa.data import prepare_dataset
 from pituitary_nfpa.preprocess.loaders import get_transforms
 from pituitary_nfpa.train.modules import PituitaryClassifier
@@ -72,10 +72,6 @@ def inference(
         fold=fold,
     )
 
-    val_cutoff = int((1.0 - VAL_RATE) * len(train_data))
-    val_data = train_data[val_cutoff:]
-    train_data = train_data[:val_cutoff]
-
     use_gpu_preprocessing = config["use_gpu_preprocessing"]
     test_transform = get_transforms(
         augmentation=False,
@@ -87,10 +83,6 @@ def inference(
         train_data,
         test_transform,
     )
-    val_dataset = monai.data.Dataset(
-        val_data,
-        test_transform,
-    )
     test_dataset = monai.data.Dataset(
         test_data,
         test_transform,
@@ -98,10 +90,6 @@ def inference(
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
-        batch_size=config["batch_size"],
-    )
-    val_loader = torch.utils.data.DataLoader(
-        val_dataset,
         batch_size=config["batch_size"],
     )
     test_loader = torch.utils.data.DataLoader(
@@ -142,7 +130,6 @@ def inference(
 
     for split_name, loader in [
         ("train", train_loader),
-        ("val", val_loader),
         ("test", test_loader),
     ]:
         results: dict[str, list] = {
