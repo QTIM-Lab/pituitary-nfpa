@@ -14,7 +14,11 @@ def extract_features(output_dir: str) -> None:
     df = pl.read_parquet(df_path)
     df = df.filter(pl.col("include"))
 
-    extractor = featureextractor.RadiomicsFeatureExtractor()
+    extractor = featureextractor.RadiomicsFeatureExtractor(
+        normalize=True,
+        binWidth=0.1,
+        resampledPixelSpacing=[0.3, 0.3, 0],
+    )
 
     results = []
 
