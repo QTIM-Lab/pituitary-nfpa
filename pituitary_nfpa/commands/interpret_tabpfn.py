@@ -32,7 +32,6 @@ class RadiomicFeatureGroups(Enum):
     "output-dir",
     type=click.Path(file_okay=False, writable=True, path_type=Path),
 )
-@click.option("--features", "-f", type=int, help="Number of features to select.")
 @click.option(
     "--radiomic-groups",
     "-g",
