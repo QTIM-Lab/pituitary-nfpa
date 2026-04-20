@@ -35,7 +35,7 @@ def get_clinical_features(
 
     # Cavernous Sinus Invasion (binary)
     columns.append(df["cs_invasion"].to_numpy())
-    names.append("age")
+    names.append("cs_invasion")
 
     # Ki-67: needs imputation
     if impute_missing:
