@@ -99,6 +99,9 @@ def interpret_tabpfn(
         train_features_list = []
         val_features_list = []
         test_features_list = []
+        feature_labels = []
+        max_display = None
+
         if use_radiomics:
             if radiomic_groups == "SHAPE":
                 feature_cols = [
@@ -121,16 +124,21 @@ def interpret_tabpfn(
             train_features_list.append(train_df[feature_cols].to_numpy())
             val_features_list.append(val_df[feature_cols].to_numpy())
             test_features_list.append(test_df[feature_cols].to_numpy())
+            feature_labels.extend(feature_cols)
+            max_display = 20
         if use_clinical:
-            train_features_list.append(
-                get_clinical_features(train_df, impute_missing=False)
+            train_clinical_features, clinical_names = get_clinical_features(
+                train_df,
+                impute_missing=False,
             )
+            train_features_list.append(train_clinical_features)
             val_features_list.append(
-                get_clinical_features(val_df, impute_missing=False)
+                get_clinical_features(val_df, impute_missing=False)[0]
             )
             test_features_list.append(
-                get_clinical_features(test_df, impute_missing=False)
+                get_clinical_features(test_df, impute_missing=False)[0]
             )
+            feature_labels.extend(clinical_names)
 
         train_features = np.column_stack(train_features_list)
         # val_features = np.column_stack(val_features_list)
@@ -153,12 +161,25 @@ def interpret_tabpfn(
         )
 
         print("Explaining")
+        print(feature_labels)
         explanations = explainer.explain_X(test_features, budget=256, n_jobs=32)
-        shapiq.beeswarm_plot(explanations, test_features, show=False)
+        shapiq.beeswarm_plot(
+            explanations,
+            test_features,
+            feature_names=feature_labels,
+            show=False,
+            abbreviate=False,
+            max_display=max_display,
+        )
         plt.savefig(output_dir / f"beeswarm_fold{fold}.png")
         plt.close()
-        shapiq.bar_plot(explanations, show=False)
-        plt.savefig(output_dir / f"bar_fold{fold}.png")
+        shapiq.bar_plot(
+            explanations,
+            feature_names=feature_labels,
+            show=False,
+            max_display=max_display,
+            abbreviate=False,
+        )
         plt.close()
 
 
