@@ -54,8 +54,6 @@ class RadiomicFeatureGroups(Enum):
 )
 @tracked(
     directory_parameter="output_dir",
-    seed_parameter="seed",
-    seed_torch=False,
 )
 def interpret_tabpfn(
     output_dir: Path,
@@ -151,7 +149,6 @@ def interpret_tabpfn(
             model=estimator,
             data=test_features,
             labels=test_labels,
-            # index="FSII",
             max_order=1,
             verbose=True,
         )
