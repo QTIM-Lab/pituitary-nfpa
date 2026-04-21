@@ -112,7 +112,7 @@ def interpret_tabpfn(
                     c
                     for c in features_df.columns
                     if c.startswith("original_shape")
-                    or c.startswith("original_first_order")
+                    or c.startswith("original_firstorder")
                 ]
             elif radiomic_groups == "ALL":
                 feature_cols = [
