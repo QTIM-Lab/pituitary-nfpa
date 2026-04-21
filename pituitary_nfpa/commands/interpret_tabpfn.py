@@ -180,6 +180,7 @@ def interpret_tabpfn(
             max_display=max_display,
             abbreviate=False,
         )
+        plt.savefig(output_dir / f"bar_fold{fold}.png")
         plt.close()
 
 
