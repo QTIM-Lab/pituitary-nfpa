@@ -177,17 +177,17 @@ def fit_tabular(
             val_features_missing_list.append(val_df[feature_cols].to_numpy())
             test_features_missing_list.append(test_df[feature_cols].to_numpy())
         if use_clinical:
-            train_features_list.append(get_clinical_features(train_df))
-            val_features_list.append(get_clinical_features(val_df))
-            test_features_list.append(get_clinical_features(test_df))
+            train_features_list.append(get_clinical_features(train_df)[0])
+            val_features_list.append(get_clinical_features(val_df)[0])
+            test_features_list.append(get_clinical_features(test_df)[0])
             train_features_missing_list.append(
-                get_clinical_features(train_df, impute_missing=False)
+                get_clinical_features(train_df, impute_missing=False)[0]
             )
             val_features_missing_list.append(
-                get_clinical_features(val_df, impute_missing=False)
+                get_clinical_features(val_df, impute_missing=False)[0]
             )
             test_features_missing_list.append(
-                get_clinical_features(test_df, impute_missing=False)
+                get_clinical_features(test_df, impute_missing=False)[0]
             )
         if cnn_prediction_model is not None:
             d = fold_mapping[fold]
