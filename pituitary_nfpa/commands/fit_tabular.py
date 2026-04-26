@@ -1,5 +1,6 @@
 """Fit and evaluate radiomic models."""
 from enum import Enum
+from collections import defaultdict
 import json
 from pathlib import Path
 import sys
@@ -132,8 +133,11 @@ def fit_tabular(
         if len(fold_mapping) != N_FOLDS:
             raise ValueError("Did not find one model per fold")
 
-    per_fold_val_aurocs: dict[str, list[float]] = {}
-    per_fold_test_aurocs: dict[str, list[float]] = {}
+    # List containing dataframes of test preditions across all folds
+    all_test_predictions_dfs: list[pl.DataFrame] = []
+
+    per_fold_val_aurocs: dict[str, list[float]] = defaultdict(list)
+    per_fold_test_aurocs: dict[str, list[float]] = defaultdict(list)
 
     for fold in range(N_FOLDS):
 
@@ -283,10 +287,6 @@ def fit_tabular(
             estimator_name = estimator.__class__.__name__
             print(estimator_name)
 
-            if estimator_name not in per_fold_val_aurocs:
-                per_fold_val_aurocs[estimator_name] = []
-                per_fold_test_aurocs[estimator_name] = []
-
             run_name = f"{model_name}-{fold:02d}-{estimator_name}"
 
             with mlflow.start_run(run_name=run_name):
@@ -362,6 +362,19 @@ def fit_tabular(
                 mlflow.log_metric("test_f1", test_f1)
                 per_fold_test_aurocs[estimator_name].append(test_auroc)
 
+                test_prediction_df = pl.DataFrame(
+                    {
+                        "mrn": test_df["mrn"].to_list(),
+                        "accession": test_df["accession"].to_list(),
+                        "estimator": [estimator_name] * len(test_predictions),
+                        "fold": [fold] * len(test_predictions),
+                        "score": test_probs,
+                        "prediction": test_predictions,
+                        "label": test_labels,
+                    }
+                )
+                all_test_predictions_dfs.append(test_prediction_df)
+
     print("Validation AUROCs")
     for estimator_name, aurocs in per_fold_val_aurocs.items():
         avg = np.mean(aurocs).item()
@@ -371,6 +384,9 @@ def fit_tabular(
     for estimator_name, aurocs in per_fold_test_aurocs.items():
         avg = np.mean(aurocs).item()
         print(f"{estimator_name}: {avg:.3f}")
+
+    full_test_df = pl.concat(all_test_predictions_dfs)
+    full_test_df.write_parquet(model_output_dir / "test_predictions.parquet")
 
 
 if __name__ == "__main__":
