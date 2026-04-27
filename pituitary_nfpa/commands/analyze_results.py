@@ -15,11 +15,13 @@ BOOTSTRAP_NUM = 1000
 @click.argument(
     "model_directory", type=click.Path(exists=True, file_okay=False, path_type=Path)
 )
+@click.argument("display_name")
 @tracked(
     directory_parameter="model_directory",
 )
 def analyze_results(
     model_directory: Path,
+    display_name: str,
 ) -> None:
     """Analyze pre-computed results.
 
@@ -72,6 +74,7 @@ def analyze_results(
     )
     plt.xlabel("False positive rate")
     plt.ylabel("True positive rate")
+    plt.title(display_name)
     plt.legend()
     plt.savefig(model_directory / "roc.png")
 
