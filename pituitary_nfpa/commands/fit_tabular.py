@@ -19,6 +19,7 @@ from pycrumbs.track import (
 import sklearn
 from sklearn import metrics
 from sklearn.feature_selection import SelectKBest, f_classif
+from sklearn.preprocessing import StandardScaler
 
 import mlflow
 import tabpfn
@@ -173,13 +174,25 @@ def fit_tabular(
                 feature_cols = [
                     c for c in features_df.columns if c.startswith("original")
                 ]
-            train_features_list.append(train_df[feature_cols].to_numpy())
-            val_features_list.append(val_df[feature_cols].to_numpy())
-            test_features_list.append(test_df[feature_cols].to_numpy())
 
-            train_features_missing_list.append(train_df[feature_cols].to_numpy())
-            val_features_missing_list.append(val_df[feature_cols].to_numpy())
-            test_features_missing_list.append(test_df[feature_cols].to_numpy())
+            train_features = train_df[feature_cols].to_numpy()
+            val_features = val_df[feature_cols].to_numpy()
+            test_features = test_df[feature_cols].to_numpy()
+
+            scaler = StandardScaler()
+            scaler.fit(train_features)
+
+            train_features = scaler.transform(train_features)
+            val_features = scaler.transform(val_features)
+            test_features = scaler.transform(test_features)
+
+            train_features_list.append(train_features)
+            val_features_list.append(val_features)
+            test_features_list.append(test_features)
+
+            train_features_missing_list.append(train_features)
+            val_features_missing_list.append(val_features)
+            test_features_missing_list.append(test_features)
         if use_clinical:
             train_features_list.append(get_clinical_features(train_df)[0])
             val_features_list.append(get_clinical_features(val_df)[0])
@@ -368,9 +381,9 @@ def fit_tabular(
                         "accession": test_df["accession"].to_list(),
                         "estimator": [estimator_name] * len(test_predictions),
                         "fold": [fold] * len(test_predictions),
-                        "score": test_probs,
+                        "score": test_probs.astype(np.float64),
                         "prediction": test_predictions,
-                        "label": test_labels,
+                        "label": test_labels.astype(np.float64),
                     }
                 )
                 all_test_predictions_dfs.append(test_prediction_df)

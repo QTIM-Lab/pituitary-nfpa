@@ -6,6 +6,7 @@ import click
 import numpy as np
 import polars as pl
 from pycrumbs import tracked
+from sklearn.preprocessing import StandardScaler
 import tabpfn
 
 from pituitary_nfpa import locations
@@ -121,9 +122,22 @@ def interpret_tabpfn(
             else:
                 raise ValueError("Unrecognized radiomic group ")
 
-            train_features_list.append(train_df[feature_cols].to_numpy())
-            val_features_list.append(val_df[feature_cols].to_numpy())
-            test_features_list.append(test_df[feature_cols].to_numpy())
+
+            train_features = train_df[feature_cols].to_numpy()
+            val_features = val_df[feature_cols].to_numpy()
+            test_features = test_df[feature_cols].to_numpy()
+
+            scaler = StandardScaler()
+            scaler.fit(train_features)
+
+            train_features = scaler.transform(train_features)
+            val_features = scaler.transform(val_features)
+            test_features = scaler.transform(test_features)
+
+            train_features_list.append(train_features)
+            val_features_list.append(val_features)
+            test_features_list.append(test_features)
+
             feature_labels.extend(feature_cols)
             max_display = 20
         if use_clinical:
