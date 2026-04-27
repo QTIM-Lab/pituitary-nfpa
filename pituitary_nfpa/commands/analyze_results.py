@@ -31,7 +31,7 @@ def analyze_results(
     predictions_file = model_directory / "test_predictions.parquet"
     predictions_df = pl.read_parquet(predictions_file)
 
-    plt.figure(figsize=(5, 5))
+    plt.figure(figsize=(6, 6))
 
     # Calculate pooled AUROCs, with bootstrapping
     for (estimator,), est_df in predictions_df.group_by(
@@ -46,7 +46,7 @@ def analyze_results(
             y_score=est_df["score"],
             y_true=est_df["label"],
         )
-        plt.plot(fpr, tpr, label=estimator)
+        plt.plot(fpr, tpr, label=f"{estimator} ({auroc:.3f})")
 
         bootstrap_aurocs = []
 
