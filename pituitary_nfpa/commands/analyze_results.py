@@ -2,6 +2,7 @@ from pathlib import Path
 from pycrumbs import tracked
 
 import click
+import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 from sklearn import metrics
@@ -28,6 +29,8 @@ def analyze_results(
     predictions_file = model_directory / "test_predictions.parquet"
     predictions_df = pl.read_parquet(predictions_file)
 
+    plt.figure(figsize=(5, 5))
+
     # Calculate pooled AUROCs, with bootstrapping
     for (estimator,), est_df in predictions_df.group_by(
         "estimator",
@@ -37,6 +40,11 @@ def analyze_results(
             y_score=est_df["score"],
             y_true=est_df["label"],
         )
+        fpr, tpr, _ = metrics.roc_curve(
+            y_score=est_df["score"],
+            y_true=est_df["label"],
+        )
+        plt.plot(fpr, tpr, label=estimator)
 
         bootstrap_aurocs = []
 
@@ -54,6 +62,18 @@ def analyze_results(
         lower, upper = np.percentile(bootstrap_aurocs, (2.5, 97.5))
 
         print(f"{estimator}: {auroc:.3f} ({lower:.3f}-{upper:.3f})")
+
+    plt.plot(
+        [0.0, 1.0],
+        [0.0, 1.0],
+        label="Chance level",
+        color="black",
+        linestyle="dashed"
+    )
+    plt.xlabel("False positive rate")
+    plt.ylabel("True positive rate")
+    plt.legend()
+    plt.savefig(model_directory / "roc.png")
 
 
 if __name__ == "__main__":
