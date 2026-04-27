@@ -29,10 +29,13 @@ def analyze_results(
     predictions_df = pl.read_parquet(predictions_file)
 
     # Calculate pooled AUROCs, with bootstrapping
-    for estimator, est_df in predictions_df.group_by("estimator"):
+    for (estimator,), est_df in predictions_df.group_by(
+        "estimator",
+        maintain_order=True,
+    ):
         auroc = metrics.roc_auc_score(
-            y_score=predictions_df["score"],
-            y_true=predictions_df["label"],
+            y_score=est_df["score"],
+            y_true=est_df["label"],
         )
 
         bootstrap_aurocs = []
@@ -51,3 +54,7 @@ def analyze_results(
         lower, upper = np.percentile(bootstrap_aurocs, (2.5, 97.5))
 
         print(f"{estimator}: {auroc:.3f} ({lower:.3f}-{upper:.3f})")
+
+
+if __name__ == "__main__":
+    analyze_results()
