@@ -22,14 +22,14 @@ def analyze_cnn_results() -> None:
     output_dir = locations.vis_dir / "cnn_rocs"
     output_dir.mkdir(exist_ok=True)
 
+    plt.figure(figsize=(6, 6))
+
     for model_name, display_name in MODEL_NAMES:
         fold_results = []
         for model_dir in locations.checkpoints_dir.glob(f"{model_name}_*"):
             fold_results.append(pl.read_parquet(model_dir / "test_inferences.parquet"))
 
         df = pl.concat(fold_results)
-
-        plt.figure(figsize=(6, 6))
 
         auroc = metrics.roc_auc_score(
             y_score=df["prediction"],
@@ -58,18 +58,18 @@ def analyze_cnn_results() -> None:
 
         print(f"{display_name}: {auroc:.3f} ({lower:.3f}-{upper:.3f})")
 
-        plt.plot(
-            [0.0, 1.0],
-            [0.0, 1.0],
-            label="Chance level",
-            color="black",
-            linestyle="dashed",
-        )
-        plt.xlabel("False positive rate")
-        plt.ylabel("True positive rate")
-        plt.title(display_name)
-        plt.legend()
-        plt.savefig(output_dir / "roc.png")
+    plt.plot(
+        [0.0, 1.0],
+        [0.0, 1.0],
+        label="Chance level",
+        color="black",
+        linestyle="dashed",
+    )
+    plt.xlabel("False positive rate")
+    plt.ylabel("True positive rate")
+    plt.title("CNN")
+    plt.legend()
+    plt.savefig(output_dir / "roc.png")
 
 
 if __name__ == "__main__":
