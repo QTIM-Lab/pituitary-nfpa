@@ -17,8 +17,7 @@ MODEL_NAMES = [
 
 
 @click.command()
-@click.argument("model-name")
-def analyze_cnn_results(model_name: str) -> None:
+def analyze_cnn_results() -> None:
     """Analyze results over an experiment with multiple folds."""
     output_dir = locations.vis_dir / "cnn_rocs"
     output_dir.mkdir(exist_ok=True)
