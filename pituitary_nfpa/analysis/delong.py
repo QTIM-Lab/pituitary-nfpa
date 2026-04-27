@@ -13,7 +13,7 @@ def delong_test(
     ci_mode: Literal[
         "gaussian", "random-bootstrap", "stratified-bootstrap"
     ] = "gaussian",
-) -> dict[str, float]:
+) -> dict[str, float | np.ndarray]:
     """Implementation of DeLong statistical test for AUROCs."""
     X1, Y1 = pred1[labels == 1], pred1[labels == 0]
     X2, Y2 = pred2[labels == 1], pred2[labels == 0]
@@ -192,4 +192,4 @@ def delong_test(
             "Select from ['two-sided', 'greater', 'lower']."
         )
 
-    return {"p": p_value.item(), "auc1": auc1.item(), "auc2": auc2.item()}
+    return {"p": p_value.item(), "auc1": auc1, "auc2": auc2}
