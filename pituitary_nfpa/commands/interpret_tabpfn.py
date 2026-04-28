@@ -182,7 +182,7 @@ def interpret_tabpfn(
         )
 
         print("Explaining")
-        explanations = explainer.explain_X(test_features, budget=32, n_jobs=32)
+        explanations = explainer.explain_X(test_features, budget=256, n_jobs=32)
         shapiq.beeswarm_plot(
             explanations,
             test_features,
