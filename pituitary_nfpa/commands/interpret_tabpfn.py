@@ -88,6 +88,9 @@ def interpret_tabpfn(
     if not use_radiomics and not use_clinical:
         raise ValueError("Must use either clinical or radiomic features.")
 
+    all_fold_explanations = []
+    all_test_features = []
+
     for fold in range(N_FOLDS):
 
         train_df = joined_df.filter(pl.col(f"fold_{fold}") == "TRAIN")
@@ -122,7 +125,6 @@ def interpret_tabpfn(
             else:
                 raise ValueError("Unrecognized radiomic group ")
 
-
             train_features = train_df[feature_cols].to_numpy()
             val_features = val_df[feature_cols].to_numpy()
             test_features = test_df[feature_cols].to_numpy()
@@ -152,6 +154,11 @@ def interpret_tabpfn(
             test_features_list.append(
                 get_clinical_features(test_df, impute_missing=False)[0]
             )
+
+            # Clarify which sex is positive
+            clinical_names = [
+                c.replace("sex", "sex (male)") for c in clinical_names
+            ]
             feature_labels.extend(clinical_names)
 
         train_features = np.column_stack(train_features_list)
@@ -175,8 +182,7 @@ def interpret_tabpfn(
         )
 
         print("Explaining")
-        print(feature_labels)
-        explanations = explainer.explain_X(test_features, budget=256, n_jobs=32)
+        explanations = explainer.explain_X(test_features, budget=32, n_jobs=32)
         shapiq.beeswarm_plot(
             explanations,
             test_features,
@@ -196,6 +202,30 @@ def interpret_tabpfn(
         )
         plt.savefig(output_dir / f"bar_fold{fold}.png")
         plt.close()
+
+        all_fold_explanations.extend(explanations)
+        all_test_features.append(test_features)
+
+    test_features = np.concatenate(all_test_features)
+    shapiq.beeswarm_plot(
+        all_fold_explanations,
+        test_features,
+        feature_names=feature_labels,
+        show=False,
+        abbreviate=False,
+        max_display=max_display,
+    )
+    plt.savefig(output_dir / "beeswarm_all_folds.png")
+    plt.close()
+    shapiq.bar_plot(
+        all_fold_explanations,
+        feature_names=feature_labels,
+        show=False,
+        max_display=max_display,
+        abbreviate=False,
+    )
+    plt.savefig(output_dir / "bar_all_folds.png")
+    plt.close()
 
 
 if __name__ == "__main__":
