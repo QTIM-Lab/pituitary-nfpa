@@ -48,7 +48,7 @@ class RadiomicFeatureGroups(Enum):
 )
 @click.option(
     "--use-ihc/--no-use-ihc",
-    "-c/-C",
+    "-i/-I",
     default=True,
     help="Include IHC features",
 )
