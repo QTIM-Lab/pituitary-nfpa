@@ -13,7 +13,7 @@ CLINICAL_DATA_KEY = "clinical"
 N_FOLDS = 6
 MIN_FOLLOWUP_MONTHS = 3
 
-MLFLOW_CLASSIFIER_PROJECT_NAME = "pituitary-classifier-2025-11"
+MLFLOW_CLASSIFIER_PROJECT_NAME = "pituitary-classifier-2026-10"
 MLFLOW_RADIOMIC_PROJECT_NAME = "pituitary-radiomic-classifier-2026-10"
 
 VAL_RATE = 0.2
