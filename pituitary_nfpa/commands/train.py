@@ -135,6 +135,9 @@ def train(
     pos_weight = 0.5 / num_positive
     neg_weight = 0.5 / num_negative
     cycles = config["cycles_per_epoch"]
+    workers = config["workers"]
+    persistent_workers = workers > 0
+    prefetch_factor = 4 if workers > 0 else None
     train_sample_weights = [
         pos_weight if item[LABEL_KEY] else neg_weight for item in train_data
     ]
@@ -145,23 +148,23 @@ def train(
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=config["batch_size"],
-        num_workers=config["workers"],
+        num_workers=workers,
         sampler=train_sampler,
-        prefetch_factor=4,
-        persistent_workers=True,
+        prefetch_factor=prefetch_factor,
+        persistent_workers=persistent_workers,
     )
     val_loader = torch.utils.data.DataLoader(
         val_dataset,
-        num_workers=config["workers"],
+        num_workers=workers,
         batch_size=config["batch_size"],
-        prefetch_factor=4,
-        persistent_workers=True,
+        prefetch_factor=prefetch_factor,
+        persistent_workers=persistent_workers,
     )
     test_loader = torch.utils.data.DataLoader(
         test_dataset,
-        num_workers=config["workers"],
+        num_workers=workers,
         batch_size=config["batch_size"],
-        prefetch_factor=4,
+        prefetch_factor=prefetch_factor,
     )
 
     mlflow.set_registry_uri(locations.mlflow_registry_uri)

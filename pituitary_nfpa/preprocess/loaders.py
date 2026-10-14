@@ -77,6 +77,7 @@ def get_transforms(
         Composed transform pipeline.
 
     """
+    lazy = True
     both_image_keys = [IMAGE_KEY, MASK_KEY]
     output_keys = [IMAGE_KEY, LABEL_KEY]
     max_rotation_deg = 15.0
@@ -127,26 +128,26 @@ def get_transforms(
         Orientationd(
             axcodes="ILA",
             keys=both_image_keys,
-            lazy=True,
-        ),
-        Spacingd(
-            pixdim=resample_spacing,
-            keys=[MASK_KEY],
-            mode=["bilinear"],
-            lazy=True,
-        ),
-        ResampleToMatchd(
-            key_dst=MASK_KEY,
-            keys=[IMAGE_KEY],
-            lazy=True,
-            padding_mode="zeros",
-            mode="nearest",
+            lazy=lazy,
         ),
         ForegroundCenteredCropd(
             source_key=MASK_KEY,
             keys=both_image_keys,
             roi_size=outer_crop_size,
-            lazy=True,
+            lazy=lazy,
+        ),
+        Spacingd(
+            pixdim=resample_spacing,
+            keys=[MASK_KEY],
+            mode=["bilinear"],
+            lazy=lazy,
+        ),
+        ResampleToMatchd(
+            key_dst=MASK_KEY,
+            keys=[IMAGE_KEY],
+            lazy=lazy,
+            padding_mode="zeros",
+            mode="nearest",
         ),
         NormalizeIntensityd(
             keys=[IMAGE_KEY],
@@ -180,7 +181,7 @@ def get_transforms(
                 translate_range=translate_range,
                 scale_range=(-0.15, 0.15),
                 mode="bilinear",
-                lazy=True,
+                lazy=lazy,
             ),
             RandFlipd(
                 keys=[IMAGE_KEY],
@@ -251,5 +252,5 @@ def get_transforms(
             *intensity_aug_transforms,
             *final_transforms,
         ],
-        lazy=True,
+        lazy=lazy,
     )
