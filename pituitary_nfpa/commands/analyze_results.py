@@ -32,7 +32,6 @@ def analyze_results(
     predictions_file = model_directory / "test_predictions.parquet"
     predictions_df = pl.read_parquet(predictions_file).with_columns(
         pl.col("label").cast(pl.Boolean),
-        (pl.col("score") > 0.5).alias("binary_pred"),
     )
 
     plt.figure(figsize=(6, 6))
@@ -48,21 +47,16 @@ def analyze_results(
             y_score=est_df["score"],
             y_true=est_df["label"],
         )
-        fpr, tpr, th = metrics.roc_curve(
+        fpr, tpr, _ = metrics.roc_curve(
             y_score=est_df["score"],
             y_true=est_df["label"],
-        )
-        youden_threshold = th[np.argmax(tpr - fpr)]
-
-        est_df = est_df.with_columns(
-            (pl.col("score") > youden_threshold).alias("binary_pred"),
         )
         auprc = metrics.average_precision_score(
             y_score=est_df["score"],
             y_true=est_df["label"],
         )
         classification_report = metrics.classification_report(
-            y_pred=est_df["binary_pred"],
+            y_pred=est_df["prediction"],
             y_true=est_df["label"],
             output_dict=True,
         )
@@ -93,7 +87,7 @@ def analyze_results(
                 )
             )
             classification_report = metrics.classification_report(
-                y_pred=bootstrap_df["binary_pred"],
+                y_pred=bootstrap_df["prediction"],
                 y_true=bootstrap_df["label"],
                 output_dict=True,
             )

@@ -141,7 +141,9 @@ def fit_tabular(
         if len(fold_mapping) != N_FOLDS:
             raise ValueError("Did not find one model per fold")
 
-    # List containing dataframes of test preditions across all folds
+    # List containing dataframes of preditions across all folds
+    all_train_predictions_dfs: list[pl.DataFrame] = []
+    all_val_predictions_dfs: list[pl.DataFrame] = []
     all_test_predictions_dfs: list[pl.DataFrame] = []
 
     per_fold_val_aurocs: dict[str, list[float]] = defaultdict(list)
@@ -200,6 +202,7 @@ def fit_tabular(
             train_features_missing_list.append(train_features)
             val_features_missing_list.append(val_features)
             test_features_missing_list.append(test_features)
+
         if use_clinical:
             train_features_list.append(
                 get_clinical_features(train_df, include_ihc=use_ihc)[0]
@@ -341,6 +344,7 @@ def fit_tabular(
                         "n_features": features,
                         "use_clinical": use_clinical,
                         "use_radiomics": use_radiomics,
+                        "use_ihc": use_ihc,
                         "cnn_prediction_model": cnn_prediction_model,
                         "radiomic_groups": radiomic_groups,
                     }
@@ -368,14 +372,52 @@ def fit_tabular(
                     **kwargs,
                 )
 
+                # Training metrics
+                train_probs = estimator.predict_proba(train_features_to_use)[:, 1]
+
+                train_fpr, train_tpr, train_th = metrics.roc_curve(
+                    y_score=train_probs,
+                    y_true=train_labels,
+                )
+                train_youden_threshold = train_th[np.argmax(train_tpr - train_fpr)]
+                train_auroc = metrics.roc_auc_score(
+                    y_score=train_probs,
+                    y_true=train_labels,
+                )
+                train_predictions = train_probs > train_youden_threshold
+                train_f1 = metrics.f1_score(
+                    y_pred=train_predictions,
+                    y_true=train_labels,
+                )
+                mlflow.log_metric("train_auroc", train_auroc)
+                mlflow.log_metric("train_f1", train_f1)
+
+                train_prediction_df = pl.DataFrame(
+                    {
+                        "mrn": train_df["mrn"].to_list(),
+                        "accession": train_df["accession"].to_list(),
+                        "estimator": [estimator_name] * len(train_predictions),
+                        "fold": [fold] * len(train_predictions),
+                        "score": train_probs.astype(np.float64),
+                        "prediction": train_predictions,
+                        "label": train_labels.astype(np.float64),
+                    }
+                )
+                all_train_predictions_dfs.append(train_prediction_df)
+
                 # Validation
-                val_predictions = estimator.predict(val_features_to_use)
                 val_probs = estimator.predict_proba(val_features_to_use)[:, 1]
 
+                val_fpr, val_tpr, val_th = metrics.roc_curve(
+                    y_score=val_probs,
+                    y_true=val_labels,
+                )
+                val_youden_threshold = val_th[np.argmax(val_tpr - val_fpr)]
                 val_auroc = metrics.roc_auc_score(
                     y_score=val_probs,
                     y_true=val_labels,
                 )
+                val_predictions = val_probs > val_youden_threshold
                 val_f1 = metrics.f1_score(
                     y_pred=val_predictions,
                     y_true=val_labels,
@@ -384,14 +426,28 @@ def fit_tabular(
                 mlflow.log_metric("val_f1", val_f1)
                 per_fold_val_aurocs[estimator_name].append(val_auroc)
 
+                val_prediction_df = pl.DataFrame(
+                    {
+                        "mrn": val_df["mrn"].to_list(),
+                        "accession": val_df["accession"].to_list(),
+                        "estimator": [estimator_name] * len(val_predictions),
+                        "fold": [fold] * len(val_predictions),
+                        "score": val_probs.astype(np.float64),
+                        "prediction": val_predictions,
+                        "label": val_labels.astype(np.float64),
+                    }
+                )
+                all_val_predictions_dfs.append(val_prediction_df)
+
                 # Testing
-                test_predictions = estimator.predict(test_features_to_use)
                 test_probs = estimator.predict_proba(test_features_to_use)[:, 1]
 
                 test_auroc = metrics.roc_auc_score(
                     y_score=test_probs,
                     y_true=test_labels,
                 )
+                # use Youden threshold determined on the val set
+                test_predictions = test_probs > val_youden_threshold
                 test_f1 = metrics.f1_score(
                     y_pred=test_predictions,
                     y_true=test_labels,
@@ -422,6 +478,12 @@ def fit_tabular(
     for estimator_name, aurocs in per_fold_test_aurocs.items():
         avg = np.mean(aurocs).item()
         print(f"{estimator_name}: {avg:.3f}")
+
+    full_train_df = pl.concat(all_train_predictions_dfs)
+    full_train_df.write_parquet(model_output_dir / "train_predictions.parquet")
+
+    full_val_df = pl.concat(all_val_predictions_dfs)
+    full_val_df.write_parquet(model_output_dir / "val_predictions.parquet")
 
     full_test_df = pl.concat(all_test_predictions_dfs)
     full_test_df.write_parquet(model_output_dir / "test_predictions.parquet")
