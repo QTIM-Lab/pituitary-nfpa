@@ -59,7 +59,7 @@ def prepare_dataset(
 
     def get_split(split_name: str) -> list[dict[str, str | int]]:
         split_df = full_df.filter(pl.col(f"fold_{fold}") == split_name)
-        clinical_features = torch.tensor(get_clinical_features(split_df)).to(
+        clinical_features = torch.tensor(get_clinical_features(split_df)[0]).to(
             torch.float32
         )
         return [

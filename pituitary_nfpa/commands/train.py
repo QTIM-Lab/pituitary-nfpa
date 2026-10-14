@@ -82,6 +82,7 @@ def train(
         fold_str = os.environ.get("SLURM_ARRAY_TASK_ID")
         if fold_str is None:
             raise RuntimeError("Cannot determine fold.")
+
     fold = int(fold_str)
 
     train_data, test_data = prepare_dataset(
@@ -94,16 +95,22 @@ def train(
     train_data = train_data[:val_cutoff]
 
     use_cache = config["use_cache"]
+    single_slice = config["single_slice"]
+    mask_foreground = config["mask_foreground"]
     use_gpu_preprocessing = config["use_gpu_preprocessing"]
     train_transform = get_transforms(
         augmentation=True,
         use_cache=use_cache,
         use_gpu=use_gpu_preprocessing,
+        single_slice=single_slice,
+        mask_foreground=mask_foreground,
     )
     val_transform = get_transforms(
         augmentation=False,
         use_cache=use_cache,
         use_gpu=use_gpu_preprocessing,
+        single_slice=single_slice,
+        mask_foreground=mask_foreground,
     )
 
     train_dataset = monai.data.CacheDataset(

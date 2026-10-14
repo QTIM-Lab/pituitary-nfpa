@@ -10,5 +10,7 @@
     "pretrained": true,
     "cycles_per_epoch": 50,
     "use_clinical": false,
+    "single_slice": false,
+    "mask_foreground": false,
     "target": "PROGRESSION_OR_RECURRENCE"
 }

@@ -8,7 +8,7 @@ as constant by other modules. By convention, constants use ALL_CAPS.
 IMAGE_KEY = "image"
 MASK_KEY = "mask"
 LABEL_KEY = "label"
-CLINICAL_DATA_KEY = "clincal"
+CLINICAL_DATA_KEY = "clinical"
 
 N_FOLDS = 6
 MIN_FOLLOWUP_MONTHS = 3

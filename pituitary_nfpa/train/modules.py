@@ -81,7 +81,7 @@ class PituitaryClassifier(pyl.LightningModule):
         self.config = config
 
         backbone = monai.networks.nets.resnet10(
-            spatial_dims=3,
+            spatial_dims=2 is config["single_slice"] else 3,
             num_classes=1,
             n_input_channels=1,
             feed_forward=False,

@@ -38,6 +38,9 @@ from qtim_transforms import ForegroundCenteredCropd
 from pituitary_nfpa.constants import IMAGE_KEY, MASK_KEY, LABEL_KEY
 
 
+DEFAULT_CROP_SIZE = (128, 128, 6)
+
+
 class ForceCache(Identityd, RandomizableTransform):
     """Hack transform to force caching while having no other effect."""
 
@@ -46,7 +49,7 @@ class ForceCache(Identityd, RandomizableTransform):
 
 def get_transforms(
     augmentation: bool = False,
-    crop_size: Sequence[int] = (128, 128, 6),
+    crop_size: Sequence[int] | None = None,
     use_gpu: bool = False,
     use_cache: bool = False,
     single_slice: bool = False,
@@ -58,8 +61,9 @@ def get_transforms(
     ----------
     augmentation: bool, optional
         Include augmentation in the pipeline.
-    crop_size: Sequence[int], optional
-        Size of the cropped region around the segmentation.
+    crop_size: Sequence[int] | None, optional
+        Size of the cropped region around the segmentation. If None,
+        a default will be applied based on the value of single_slice.
     use_gpu: bool, optional
         Whether to use the GPU for preprocessing transforms.
     single_slice: bool, optional
@@ -79,36 +83,39 @@ def get_transforms(
     max_rotation_rad = np.deg2rad(max_rotation_deg)
     padding_factor = 1 + 2.2 * np.cos(max_rotation_rad)
 
+    if crop_size is None:
+        crop_size = (
+            DEFAULT_CROP_SIZE[:2] + (1, )
+            if single_slice
+            else DEFAULT_CROP_SIZE
+        )
+
     transpose_xy = 10
     transpose_z = 3
 
     outer_crop_y = int(np.ceil(crop_size[0] * padding_factor)) + 2 * transpose_xy
     outer_crop_x = int(np.ceil(crop_size[1] * padding_factor)) + 2 * transpose_xy
 
+    rotate_range = [
+        (-max_rotation_rad, max_rotation_rad),
+        (-max_rotation_rad, max_rotation_rad),
+    ]
+    resample_spacing = (0.3, 0.3, 0.2)
+
     if single_slice:
-        rotate_range = [
-            (-max_rotation_rad, max_rotation_rad),
-            (-max_rotation_rad, max_rotation_rad),
-        ]
         translate_range = [
             (-transpose_xy, transpose_xy),
             (-transpose_xy, transpose_xy),
+            (0, 0)
         ]
-        outer_crop_size = (outer_crop_y, outer_crop_x)
-        resample_spacing = (0.3, 0.3)
+        outer_crop_size = (outer_crop_y, outer_crop_x, 1)
     else:
-        rotate_range = [
-            (-max_rotation_rad, max_rotation_rad),
-            (-max_rotation_rad, max_rotation_rad),
-            (0, 0),
-        ]
         translate_range = [
             (-transpose_xy, transpose_xy),
             (-transpose_xy, transpose_xy),
             (-transpose_z, transpose_z),
         ]
-        outer_crop_size = (outer_crop_y, outer_crop_x, 1)
-        resample_spacing = (0.3, 0.3, 0.2)
+        outer_crop_size = (outer_crop_y, outer_crop_x, 2 * transpose_z + 1)
 
     device = "cuda:0" if use_gpu else "cpu"
 
@@ -137,11 +144,10 @@ def get_transforms(
         ),
         ForegroundCenteredCropd(
             source_key=MASK_KEY,
-            keys=MASK_KEY,
+            keys=both_image_keys,
             roi_size=outer_crop_size,
             lazy=True,
         ),
-        *([SqueezeDimd(keys=both_image_keys, dim=-1)] if single_slice else []),
         NormalizeIntensityd(
             keys=[IMAGE_KEY],
         ),
@@ -222,6 +228,16 @@ def get_transforms(
         ]
 
     final_transforms = [
+        *(
+            [
+                SqueezeDimd(
+                    keys=[IMAGE_KEY],
+                    dim=-1,
+                    update_meta=False
+                )
+            ]
+            if single_slice else []
+        ),
         # Allows CUDA tensors to be shared between threads
         ToTensord(output_keys, track_meta=False),
     ]
