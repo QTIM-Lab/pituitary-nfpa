@@ -59,6 +59,12 @@ class RadiomicFeatureGroups(Enum):
     help="Include clinical features",
 )
 @click.option(
+    "--use-ihc/--no-use-ihc",
+    "-i/-I",
+    default=True,
+    help="Include IHC features",
+)
+@click.option(
     "--use-radiomics/--no-use-radiomics",
     "-r/-R",
     default=True,
@@ -82,6 +88,7 @@ def fit_tabular(
     model_output_dir: Path,
     use_clinical: bool,
     use_radiomics: bool,
+    use_ihc: bool,
     cnn_prediction_model: str | None = None,
     seed: Optional[int] = None,
     features: Optional[int] = None,
@@ -194,17 +201,35 @@ def fit_tabular(
             val_features_missing_list.append(val_features)
             test_features_missing_list.append(test_features)
         if use_clinical:
-            train_features_list.append(get_clinical_features(train_df)[0])
-            val_features_list.append(get_clinical_features(val_df)[0])
-            test_features_list.append(get_clinical_features(test_df)[0])
+            train_features_list.append(
+                get_clinical_features(train_df, include_ihc=use_ihc)[0]
+            )
+            val_features_list.append(
+                get_clinical_features(val_df, include_ihc=use_ihc)[0]
+            )
+            test_features_list.append(
+                get_clinical_features(test_df, include_ihc=use_ihc)[0]
+            )
             train_features_missing_list.append(
-                get_clinical_features(train_df, impute_missing=False)[0]
+                get_clinical_features(
+                    train_df,
+                    impute_missing=False,
+                    include_ihc=use_ihc,
+                )[0]
             )
             val_features_missing_list.append(
-                get_clinical_features(val_df, impute_missing=False)[0]
+                get_clinical_features(
+                    val_df,
+                    impute_missing=False,
+                    include_ihc=use_ihc,
+                )[0]
             )
             test_features_missing_list.append(
-                get_clinical_features(test_df, impute_missing=False)[0]
+                get_clinical_features(
+                    test_df,
+                    impute_missing=False,
+                    include_ihc=use_ihc,
+                )[0]
             )
         if cnn_prediction_model is not None:
             d = fold_mapping[fold]

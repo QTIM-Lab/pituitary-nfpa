@@ -3,11 +3,13 @@ import polars as pl
 
 
 N_CLINICAL_FEATURES = 12
+N_CLINICAL_FEATURES_NO_IHC = 4
 
 
 def get_clinical_features(
     df: pl.DataFrame,
     impute_missing: bool = True,
+    include_ihc: bool = True,
 ) -> tuple[np.ndarray, list[str]]:
     """Get formatted clinical features.
 
@@ -20,6 +22,8 @@ def get_clinical_features(
         Array of features
     feature_names: list[str]
         List of feature names.
+    include_ihc: bool
+        Include features derived from IHC
 
     """
     columns = []
@@ -37,21 +41,22 @@ def get_clinical_features(
     columns.append(df["cs_invasion"].to_numpy())
     names.append("cs_invasion")
 
-    # Ki-67: needs imputation
-    if impute_missing:
-        df = df.with_columns(pl.col("ki67").fill_null(strategy="mean"))
-    columns.append(df["ki67"].to_numpy())
-    names.append("ki67")
-
     # Size - scale by 50
     columns.append(df["size"].to_numpy() / 50.0)
     names.append("size")
 
-    # IHC columns - between 0 by 4
-    for f in ["acth", "lh", "fsh", "alpha_subunit", "gh", "prl", "tsh"]:
+    if include_ihc:
+        # Ki-67: needs imputation
         if impute_missing:
-            df = df.with_columns(pl.col(f).fill_null(strategy="mean"))
-        columns.append(df[f].to_numpy() / 4.0)
-        names.append(f)
+            df = df.with_columns(pl.col("ki67").fill_null(strategy="mean"))
+        columns.append(df["ki67"].to_numpy())
+        names.append("ki67")
+
+        # IHC columns - between 0 by 4
+        for f in ["acth", "lh", "fsh", "alpha_subunit", "gh", "prl", "tsh"]:
+            if impute_missing:
+                df = df.with_columns(pl.col(f).fill_null(strategy="mean"))
+            columns.append(df[f].to_numpy() / 4.0)
+            names.append(f)
 
     return np.column_stack(columns), names

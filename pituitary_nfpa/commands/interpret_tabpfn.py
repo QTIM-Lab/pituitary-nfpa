@@ -47,6 +47,12 @@ class RadiomicFeatureGroups(Enum):
     help="Include clinical features",
 )
 @click.option(
+    "--use-ihc/--no-use-ihc",
+    "-c/-C",
+    default=True,
+    help="Include IHC features",
+)
+@click.option(
     "--use-radiomics/--no-use-radiomics",
     "-r/-R",
     default=True,
@@ -59,6 +65,7 @@ def interpret_tabpfn(
     output_dir: Path,
     use_clinical: bool,
     use_radiomics: bool,
+    use_ihc: bool,
     radiomic_groups: str = "ALL",
 ) -> None:
     """Train a tabular model.
@@ -146,19 +153,26 @@ def interpret_tabpfn(
             train_clinical_features, clinical_names = get_clinical_features(
                 train_df,
                 impute_missing=False,
+                include_ihc=use_ihc,
             )
             train_features_list.append(train_clinical_features)
             val_features_list.append(
-                get_clinical_features(val_df, impute_missing=False)[0]
+                get_clinical_features(
+                    val_df,
+                    impute_missing=False,
+                    include_ihc=use_ihc,
+                )[0]
             )
             test_features_list.append(
-                get_clinical_features(test_df, impute_missing=False)[0]
+                get_clinical_features(
+                    test_df,
+                    impute_missing=False,
+                    include_ihc=use_ihc,
+                )[0]
             )
 
             # Clarify which sex is positive
-            clinical_names = [
-                c.replace("sex", "sex (male)") for c in clinical_names
-            ]
+            clinical_names = [c.replace("sex", "sex (male)") for c in clinical_names]
             feature_labels.extend(clinical_names)
 
         train_features = np.column_stack(train_features_list)
