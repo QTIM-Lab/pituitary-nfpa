@@ -48,9 +48,14 @@ def analyze_results(
             y_score=est_df["score"],
             y_true=est_df["label"],
         )
-        fpr, tpr, _ = metrics.roc_curve(
+        fpr, tpr, th = metrics.roc_curve(
             y_score=est_df["score"],
             y_true=est_df["label"],
+        )
+        youden_threshold = th[np.argmax(tpr - fpr)]
+
+        est_df = est_df.with_columns(
+            (pl.col("score") > youden_threshold).alias("binary_pred"),
         )
         auprc = metrics.average_precision_score(
             y_score=est_df["score"],
@@ -88,8 +93,8 @@ def analyze_results(
                 )
             )
             classification_report = metrics.classification_report(
-                y_pred=est_df["binary_pred"],
-                y_true=est_df["label"],
+                y_pred=bootstrap_df["binary_pred"],
+                y_true=bootstrap_df["label"],
                 output_dict=True,
             )
             bootstrap_f1.append(classification_report["True"]["f1-score"])
@@ -100,8 +105,8 @@ def analyze_results(
             bootstrap_accuracy.append(classification_report["accuracy"])
             bootstrap_auprc.append(
                 metrics.average_precision_score(
-                    y_score=est_df["score"],
-                    y_true=est_df["label"],
+                    y_score=bootstrap_df["score"],
+                    y_true=bootstrap_df["label"],
                 )
             )
 
