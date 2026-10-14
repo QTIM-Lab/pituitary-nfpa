@@ -18,10 +18,12 @@ from monai.transforms.utility.dictionary import (
     DeleteItemsd,
     EnsureChannelFirstd,
     Identityd,
+    SqueezeDimd,
     ToDeviced,
     ToTensord,
 )
 from monai.transforms.intensity.dictionary import (
+    MaskIntensityd,
     NormalizeIntensityd,
     RandAdjustContrastd,
     RandGaussianNoised,
@@ -47,6 +49,8 @@ def get_transforms(
     crop_size: Sequence[int] = (128, 128, 6),
     use_gpu: bool = False,
     use_cache: bool = False,
+    single_slice: bool = False,
+    mask_foreground: bool = False,
 ) -> Compose:
     """Get the transform pipeline.
 
@@ -58,6 +62,10 @@ def get_transforms(
         Size of the cropped region around the segmentation.
     use_gpu: bool, optional
         Whether to use the GPU for preprocessing transforms.
+    single_slice: bool, optional
+        Return a 2D tensor with a single slice.
+    mask_foreground: bool, optional
+        Mask out (set to black) anything outside the segmentation mask.
 
     Returns
     -------
@@ -70,25 +78,37 @@ def get_transforms(
     max_rotation_deg = 15.0
     max_rotation_rad = np.deg2rad(max_rotation_deg)
     padding_factor = 1 + 2.2 * np.cos(max_rotation_rad)
-    rotate_range = [
-        (-max_rotation_rad, max_rotation_rad),
-        (-max_rotation_rad, max_rotation_rad),
-        (0, 0),
-    ]
 
     transpose_xy = 10
     transpose_z = 3
-    translate_range = [
-        (-transpose_xy, transpose_xy),
-        (-transpose_xy, transpose_xy),
-        (-transpose_z, transpose_z),
-    ]
 
-    outer_crop_size = (
-        int(np.ceil(crop_size[0] * padding_factor)) + 2 * transpose_xy,
-        int(np.ceil(crop_size[1] * padding_factor)) + 2 * transpose_xy,
-        2 * transpose_z,
-    )
+    outer_crop_y = int(np.ceil(crop_size[0] * padding_factor)) + 2 * transpose_xy
+    outer_crop_x = int(np.ceil(crop_size[1] * padding_factor)) + 2 * transpose_xy
+
+    if single_slice:
+        rotate_range = [
+            (-max_rotation_rad, max_rotation_rad),
+            (-max_rotation_rad, max_rotation_rad),
+        ]
+        translate_range = [
+            (-transpose_xy, transpose_xy),
+            (-transpose_xy, transpose_xy),
+        ]
+        outer_crop_size = (outer_crop_y, outer_crop_x)
+        resample_spacing = (0.3, 0.3)
+    else:
+        rotate_range = [
+            (-max_rotation_rad, max_rotation_rad),
+            (-max_rotation_rad, max_rotation_rad),
+            (0, 0),
+        ]
+        translate_range = [
+            (-transpose_xy, transpose_xy),
+            (-transpose_xy, transpose_xy),
+            (-transpose_z, transpose_z),
+        ]
+        outer_crop_size = (outer_crop_y, outer_crop_x, 1)
+        resample_spacing = (0.3, 0.3, 0.2)
 
     device = "cuda:0" if use_gpu else "cpu"
 
@@ -103,43 +123,45 @@ def get_transforms(
             lazy=True,
         ),
         Spacingd(
-            pixdim=[0.3, 0.3, 2.0],
-            keys=[IMAGE_KEY],
+            pixdim=resample_spacing,
+            keys=[MASK_KEY],
             mode=["bilinear"],
             lazy=True,
         ),
         ResampleToMatchd(
-            key_dst=IMAGE_KEY,
-            keys=[MASK_KEY],
+            key_dst=MASK_KEY,
+            keys=[IMAGE_KEY],
             lazy=True,
             padding_mode="zeros",
             mode="nearest",
         ),
         ForegroundCenteredCropd(
             source_key=MASK_KEY,
-            keys=both_image_keys,
+            keys=MASK_KEY,
             roi_size=outer_crop_size,
             lazy=True,
         ),
-        DeleteItemsd(keys=[MASK_KEY]),
+        *([SqueezeDimd(keys=both_image_keys, dim=-1)] if single_slice else []),
         NormalizeIntensityd(
             keys=[IMAGE_KEY],
         ),
+        *(
+            [MaskIntensityd(keys=[IMAGE_KEY], mask_key=MASK_KEY)]
+            if mask_foreground
+            else []
+        ),
+        DeleteItemsd(keys=[MASK_KEY]),
     ]
 
     cache_transforms: list[Transform] = []
     if use_cache and augmentation:
         if use_gpu:
             # Force caching on the CPU
-            cache_transforms.append(
-                ToDeviced(keys=output_keys, device="cpu")
-            )
+            cache_transforms.append(ToDeviced(keys=output_keys, device="cpu"))
         cache_transforms.append(ForceCache(keys=output_keys))
         if use_gpu:
             # Return to gpu after cache
-            cache_transforms.append(
-                ToDeviced(keys=output_keys, device=device)
-            )
+            cache_transforms.append(ToDeviced(keys=output_keys, device=device))
 
     spatial_aug_transforms = []
     intensity_aug_transforms = []
