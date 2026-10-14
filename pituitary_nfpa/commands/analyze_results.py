@@ -142,7 +142,7 @@ def analyze_results(
     plt.legend()
     plt.savefig(model_directory / "roc.png")
 
-    with model_directory.joinpath("metrics.json").open("r") as f:
+    with model_directory.joinpath("metrics.json").open("w") as f:
         json.dump(metrics_dict, f, indent=4)
 
 
