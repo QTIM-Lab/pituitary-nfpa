@@ -77,6 +77,8 @@ def inference(
         augmentation=False,
         use_cache=False,
         use_gpu=use_gpu_preprocessing,
+        single_slice=config["single_slice"],
+        mask_foreground=config["mask_foreground"],
     )
 
     train_dataset = monai.data.Dataset(
@@ -100,7 +102,7 @@ def inference(
     # Get the checkpoint file. Due to a misunderstanding, there are two
     # checkpoint directories for each model. One that mlflow logging created,
     # and another by pytorch lightning. We want the mlflow one, since that
-    # stored the "best" val_auroc checkpoint, whereas the copy in the main main
+    # stored the "best" val_auroc checkpoint, whereas the copy in the main
     # directory is the latest (and these models overfit badly))
     # To get the location of the mlflow version, we need to do some mlflow
     # queries
