@@ -60,12 +60,20 @@ def analyze_results(
             y_true=est_df["label"],
             output_dict=True,
         )
+        brier_score = metrics.brier_score_loss(
+            y_proba=est_df["score"],
+            y_true=est_df["label"],
+        )
         f1 = classification_report["True"]["f1-score"]
         precision = classification_report["True"]["precision"]
         recall = classification_report["True"]["recall"]
         npv = classification_report["False"]["precision"]
         specificity = classification_report["False"]["recall"]
         accuracy = classification_report["accuracy"]
+        balanced_accuracy = metrics.balanced_accuracy_score(
+            y_pred=est_df["prediction"],
+            y_true=est_df["label"],
+        )
         plt.plot(fpr, tpr, label=f"{estimator} ({auroc:.3f})")
 
         bootstrap_auroc = []
@@ -75,7 +83,9 @@ def analyze_results(
         bootstrap_npv = []
         bootstrap_specificity = []
         bootstrap_accuracy = []
+        bootstrap_balanced_accuracy = []
         bootstrap_auprc = []
+        bootstrap_brier = []
 
         for _ in range(BOOTSTRAP_NUM):
             bootstrap_df = est_df.sample(len(est_df), with_replacement=True)
@@ -90,6 +100,18 @@ def analyze_results(
                 y_pred=bootstrap_df["prediction"],
                 y_true=bootstrap_df["label"],
                 output_dict=True,
+            )
+            bootstrap_balanced_accuracy.append(
+                metrics.balanced_accuracy_score(
+                    y_pred=bootstrap_df["prediction"],
+                    y_true=bootstrap_df["label"],
+                )
+            )
+            bootstrap_brier.append(
+                metrics.brier_score_loss(
+                    y_proba=bootstrap_df["score"],
+                    y_true=bootstrap_df["label"],
+                )
             )
             bootstrap_f1.append(classification_report["True"]["f1-score"])
             bootstrap_precision.append(classification_report["True"]["precision"])
@@ -119,6 +141,10 @@ def analyze_results(
         npv_lower, npv_upper = np.percentile(bootstrap_npv, (2.5, 97.5))
         f1_lower, f1_upper = np.percentile(bootstrap_f1, (2.5, 97.5))
         accuracy_lower, accuracy_upper = np.percentile(bootstrap_accuracy, (2.5, 97.5))
+        balanced_accuracy_lower, balanced_accuracy_upper = np.percentile(
+            bootstrap_balanced_accuracy, (2.5, 97.5)
+        )
+        brier_lower, brier_upper = np.percentile(bootstrap_brier, (2.5, 97.5))
 
         metrics_dict[estimator] = {
             "auroc": (auroc, auroc_lower, auroc_upper),
@@ -129,6 +155,12 @@ def analyze_results(
             "npv": (npv, npv_lower, npv_upper),
             "f1": (f1, f1_lower, f1_upper),
             "accuracy": (accuracy, accuracy_lower, accuracy_upper),
+            "brier_score": (brier_score, brier_lower, brier_upper),
+            "balanced_accuracy": (
+                balanced_accuracy,
+                balanced_accuracy_lower,
+                balanced_accuracy_upper,
+            ),
         }
         print(metrics_dict[estimator])
 
