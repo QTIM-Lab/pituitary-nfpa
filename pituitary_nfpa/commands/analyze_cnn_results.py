@@ -13,6 +13,7 @@ BOOTSTRAP_NUM = 1000
 MODEL_NAMES = [
     ("basic-cnn-scratch-2025-11-07", "Image-Only CNN"),
     ("multimodal-cnn-scratch-2025-11-07", "Multi-modal CNN"),
+    ("masked-2d-cnn-scratch-2026-10-14", "Tumor-Only 2D CNN"),
 ]
 
 
